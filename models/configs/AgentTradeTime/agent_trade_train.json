@@ -1,0 +1,129 @@
+{   
+    "epochs": 100,
+    "batch_size": 150,
+    "num_workers": 0,
+    "lr": 1e-5,
+    "weight_decay": 1e-4,
+    "patience": 7,
+    "mixed": true,
+    "mixed_precision": true,
+    "RANDOM_INDICATETS": true,
+
+    "agents": [
+        {
+            "name": "agent_trade_5m_full_RP",
+
+            "indecaters": {
+                "SMA": {"period": "?", "column": "?"},
+                "EMA": {"period": "?", "column": "?"},
+                "RSI": {"period": "?"},
+                "ATR": {"period": "?"},
+                "MACD": {"fast": "?", "slow": "?", "signal": "?"},
+                "STOCHASTIC_OSCILLATOR": {"period": "?", "smoothing": "?"},
+                "BOLLINGER": {"period": "?", "num_std": "?"},
+                "VWAP": {},
+                "OBV": {},
+                "MFI": {"period": "?"},
+                "CRV": {"period": "?", "trading_days": 362880}
+            },
+
+            "type": "AgentTradeTime",
+            "mod": "train",
+
+            "proffit_preddict_for_buy": 0.4,
+            "proffit_preddict_for_sell": 0.6,
+
+            "timetravel": "5m",
+            "discription": "Agent for signal generation and trading execution in a sequence.",
+            "data_normalize": true,
+
+            "model_parameters": {
+                "pred_len": 10,
+                "seq_len": 30,
+                "hidden_size": 128,
+                "num_layers": 4,
+                "emb_month_size": 8,
+                "emb_weekday_size": 4,
+                "lstm_hidden": 256,
+                "n_heads": 4,
+                "dropout": 0.2
+            }
+        },
+        {
+            "name": "agent_trade_15m_full_RP",
+
+            "indecaters": {
+                "SMA": {"period": "?", "column": "?"},
+                "EMA": {"period": "?", "column": "?"},
+                "RSI": {"period": "?"},
+                "ATR": {"period": "?"},
+                "MACD": {"fast": "?", "slow": "?", "signal": "?"},
+                "STOCHASTIC_OSCILLATOR": {"period": "?", "smoothing": "?"},
+                "BOLLINGER": {"period": "?", "num_std": "?"},
+                "VWAP": {},
+                "OBV": {},
+                "MFI": {"period": "?"},
+                "CRV": {"period": "?", "trading_days": 362880}
+            },
+
+            "type": "AgentTradeTime",
+            "mod": "train",
+
+            "proffit_preddict_for_buy": 0.4,
+            "proffit_preddict_for_sell": 0.6,
+
+            "timetravel": "15m",
+            "discription": "Agent for signal generation and trading execution in a sequence.",
+            "data_normalize": true,
+
+            "model_parameters": {
+                "pred_len": 10,
+                "seq_len": 30,
+                "hidden_size": 128,
+                "num_layers": 4,
+                "emb_month_size": 8,
+                "emb_weekday_size": 4,
+                "lstm_hidden": 256,
+                "n_heads": 4,
+                "dropout": 0.3
+            }
+        }
+    ],
+
+    "schema": {
+        "period": {
+            "type": "integer",
+            "minimum": 5,
+            "maximum": 50
+        },
+        "column": {
+            "type": "string",
+            "enum": ["open", "max", "min", "close"]
+        },
+        "fast": {
+            "type": "integer",
+            "minimum": 5,
+            "maximum": 50
+        },
+        "slow": {
+            "type": "integer",
+            "minimum": 5,
+            "maximum": 50
+        },
+        "signal": {
+            "type": "integer",
+            "minimum": 5,
+            "maximum": 50
+        },
+        "smoothing": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 50
+        },
+        "num_std": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 50
+        }
+    }
+}
