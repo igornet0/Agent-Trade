@@ -9,6 +9,8 @@ import math
 import os
 from uuid import uuid4
 from sqlalchemy import select
+import pandas as pd
+import numpy as np
 
 from core.database import db_helper
 from core.database.orm.market import (
@@ -1128,32 +1130,242 @@ def run_pipeline_backtest_task(self, config_json: dict, pipeline_id: int = None)
 
     return asyncio.run(_run())
 
-    # db = SessionLocal()
-    # try:
-    #     # Обновляем статус задачи в БД
-    #     task = db.query(TrainingTask).filter(TrainingTask.task_id == task_id).first()
-    #     task.status = "processing"
-    #     db.commit()
+
+@celery_app.task(bind=True)
+def train_pred_time_task(self, config: dict):
+    """Train Pred_time model with PyTorch pipeline"""
+    try:
+        from core.services.pred_time_service import PredTimeService
+        from core.database import db_helper
+        import asyncio
         
-    #     # Здесь должна быть ваша реальная логика обучения
-    #     print(f"Start training model with dataset: {dataset_path}")
-    #     print(f"Parameters: {json.dumps(parameters)}")
+        # Extract configuration
+        coin_ids = config.get('coin_ids', [])
+        agent_id = config.get('agent_id')
         
-    #     # Имитация долгого обучения
-    #     for i in range(10):
-    #         time.sleep(1)
-    #         self.update_state(state='PROGRESS', meta={'progress': i*10})
+        if not coin_ids:
+            return {"status": "error", "detail": "coin_ids is required"}
         
-    #     # Обновляем статус после успешного выполнения
-    #     task.status = "completed"
-    #     db.commit()
+        if not agent_id:
+            return {"status": "error", "detail": "agent_id is required"}
         
-    #     return {"status": "success", "task_id": task_id}
-    
-    # except Exception as e:
-    #     task.status = "failed"
-    #     db.commit()
-    #     raise self.retry(exc=e, countdown=60, max_retries=3)
-    
-    # finally:
-    #     db.close()
+        # Initialize service
+        pred_time_service = PredTimeService()
+        
+        async def _run():
+            async with db_helper.get_session() as session:
+                self.update_state(
+                    state='PROGRESS',
+                    meta={'progress': 10, 'message': f'Starting Pred_time training for {len(coin_ids)} coins...'}
+                )
+                
+                # Train model
+                result = await pred_time_service.train_model(
+                    session, coin_ids, config, agent_id
+                )
+                
+                if result['status'] == 'success':
+                    self.update_state(
+                        state='SUCCESS',
+                        meta={
+                            'progress': 100,
+                            'message': 'Pred_time model training completed successfully',
+                            'result': result
+                        }
+                    )
+                else:
+                    self.update_state(
+                        state='FAILURE',
+                        meta={
+                            'progress': 100,
+                            'message': f"Pred_time training failed: {result.get('error', 'Unknown error')}"
+                        }
+                    )
+                
+                return result
+        
+        return asyncio.run(_run())
+        
+    except Exception as e:
+        logger.exception("train_pred_time_task failed")
+        return {"status": "error", "detail": str(e)}
+
+
+@celery_app.task(bind=True)
+def evaluate_pred_time_task(self, config: dict):
+    """Evaluate Pred_time model performance"""
+    try:
+        from core.services.pred_time_service import PredTimeService
+        from core.database import db_helper
+        import asyncio
+        
+        # Extract configuration
+        model_path = config.get('model_path')
+        coin_ids = config.get('coin_ids', [])
+        evaluation_hours = config.get('evaluation_hours', 168)  # 1 week
+        
+        if not model_path:
+            return {"status": "error", "detail": "model_path is required"}
+        
+        if not coin_ids:
+            return {"status": "error", "detail": "coin_ids is required"}
+        
+        # Initialize service
+        pred_time_service = PredTimeService()
+        
+        async def _run():
+            async with db_helper.get_session() as session:
+                self.update_state(
+                    state='PROGRESS',
+                    meta={'progress': 20, 'message': 'Loading trained model...'}
+                )
+                
+                # Load model
+                model = await pred_time_service.load_model(model_path)
+                if not model:
+                    return {"status": "error", "detail": "Failed to load model"}
+                
+                self.update_state(
+                    state='PROGRESS',
+                    meta={'progress': 40, 'message': 'Evaluating model performance...'}
+                )
+                
+                # Evaluate on each coin
+                evaluation_results = {}
+                total_coins = len(coin_ids)
+                
+                for i, coin_id in enumerate(coin_ids):
+                    try:
+                        self.update_state(
+                            state='PROGRESS',
+                            meta={
+                                'progress': 40 + (i * 40 // total_coins),
+                                'message': f'Evaluating coin {coin_id} ({i+1}/{total_coins})...'
+                            }
+                        )
+                        
+                        # Get recent data for evaluation
+                        ts = await orm_get_timeseries_by_coin(session, coin_id, timeframe='5m')
+                        if not ts:
+                            evaluation_results[coin_id] = {
+                                'status': 'no_data',
+                                'message': 'No timeseries data available'
+                            }
+                            continue
+                        
+                        data = await orm_get_data_timeseries(session, ts.id)
+                        if not data:
+                            evaluation_results[coin_id] = {
+                                'status': 'no_data',
+                                'message': 'No price data available'
+                            }
+                            continue
+                        
+                        # Convert to DataFrame
+                        df = pd.DataFrame([
+                            {
+                                'timestamp': row.datetime,
+                                'open': float(row.open),
+                                'high': float(row.high),
+                                'low': float(row.low),
+                                'close': float(row.close),
+                                'volume': float(row.volume)
+                            }
+                            for row in data
+                        ])
+                        df.set_index('timestamp', inplace=True)
+                        
+                        # Prepare features for evaluation
+                        X, y = pred_time_service._prepare_features(df, coin_id)
+                        
+                        if len(X) == 0:
+                            evaluation_results[coin_id] = {
+                                'status': 'insufficient_data',
+                                'message': 'Insufficient data for evaluation'
+                            }
+                            continue
+                        
+                        # Make predictions
+                        predictions = []
+                        targets = []
+                        
+                        for j in range(0, len(X), config.get('batch_size', 32)):
+                            batch_X = X[j:j + config.get('batch_size', 32)]
+                            batch_y = y[j:j + config.get('batch_size', 32)]
+                            
+                            # Make prediction
+                            prediction = await pred_time_service.predict(model, batch_X, coin_id)
+                            if prediction:
+                                predictions.append(prediction['predicted_change'])
+                                targets.extend(batch_y)
+                        
+                        if len(predictions) == 0:
+                            evaluation_results[coin_id] = {
+                                'status': 'prediction_failed',
+                                'message': 'Failed to generate predictions'
+                            }
+                            continue
+                        
+                        # Calculate metrics
+                        predictions = np.array(predictions)
+                        targets = np.array(targets)
+                        
+                        metrics = pred_time_service._calculate_metrics(predictions, targets)
+                        
+                        evaluation_results[coin_id] = {
+                            'status': 'success',
+                            'metrics': metrics,
+                            'predictions_count': len(predictions),
+                            'targets_count': len(targets)
+                        }
+                        
+                    except Exception as e:
+                        logger.error(f"Failed to evaluate coin {coin_id}: {e}")
+                        evaluation_results[coin_id] = {
+                            'status': 'error',
+                            'error': str(e)
+                        }
+                
+                # Calculate overall metrics
+                successful_evaluations = [
+                    r for r in evaluation_results.values() 
+                    if r['status'] == 'success'
+                ]
+                
+                if successful_evaluations:
+                    overall_metrics = {
+                        'avg_rmse': np.mean([r['metrics']['rmse'] for r in successful_evaluations]),
+                        'avg_mae': np.mean([r['metrics']['mae'] for r in successful_evaluations]),
+                        'avg_mape': np.mean([r['metrics']['mape'] for r in successful_evaluations]),
+                        'avg_direction_accuracy': np.mean([r['metrics']['direction_accuracy'] for r in successful_evaluations]),
+                        'avg_correlation': np.mean([r['metrics']['correlation'] for r in successful_evaluations]),
+                        'coins_evaluated': len(coin_ids),
+                        'successful_evaluations': len(successful_evaluations)
+                    }
+                else:
+                    overall_metrics = {
+                        'coins_evaluated': len(coin_ids),
+                        'successful_evaluations': 0
+                    }
+                
+                self.update_state(
+                    state='SUCCESS',
+                    meta={
+                        'progress': 100,
+                        'message': f'Pred_time evaluation completed for {len(coin_ids)} coins',
+                        'results': evaluation_results,
+                        'overall_metrics': overall_metrics
+                    }
+                )
+                
+                return {
+                    'status': 'success',
+                    'results': evaluation_results,
+                    'overall_metrics': overall_metrics
+                }
+        
+        return asyncio.run(_run())
+        
+    except Exception as e:
+        logger.exception("evaluate_pred_time_task failed")
+        return {"status": "error", "detail": str(e)}

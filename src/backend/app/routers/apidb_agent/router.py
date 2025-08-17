@@ -536,3 +536,213 @@ async def promote_agent(agent_id: int,
         raise e
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Promote failed: {str(e)}")
+
+
+@router.post("/pred_time/train")
+async def train_pred_time_model(
+    request: dict,
+    _: str = Depends(verify_authorization_admin)
+):
+    """Train Pred_time model for price prediction"""
+    try:
+        from core.database import db_helper
+        
+        # Validate request
+        coin_ids = request.get('coin_ids', [])
+        agent_id = request.get('agent_id')
+        config = request.get('config', {})
+        
+        if not coin_ids:
+            raise HTTPException(status_code=400, detail="coin_ids is required")
+        
+        if not agent_id:
+            raise HTTPException(status_code=400, detail="agent_id is required")
+        
+        # Validate configuration
+        required_fields = ['seq_len', 'pred_len', 'model_type']
+        for field in required_fields:
+            if field not in config:
+                raise HTTPException(status_code=400, detail=f"config.{field} is required")
+        
+        # Start Celery task
+        from backend.celery_app.create_app import celery_app
+        task_config = {
+            'coin_ids': coin_ids,
+            'agent_id': agent_id,
+            **config
+        }
+        
+        task = celery_app.send_task('backend.celery_app.tasks.train_pred_time_task', kwargs=task_config)
+        
+        return {
+            "status": "started",
+            "task_id": task.id,
+            "config": task_config,
+            "message": f"Pred_time model training started for {len(coin_ids)} coins"
+        }
+        
+    except Exception as e:
+        logger.exception("Failed to start Pred_time model training")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.post("/pred_time/evaluate")
+async def evaluate_pred_time_model(
+    request: dict,
+    _: str = Depends(verify_authorization_admin)
+):
+    """Evaluate Pred_time model performance"""
+    try:
+        from core.database import db_helper
+        
+        # Validate request
+        model_path = request.get('model_path')
+        coin_ids = request.get('coin_ids', [])
+        evaluation_hours = request.get('evaluation_hours', 168)
+        
+        if not model_path:
+            raise HTTPException(status_code=400, detail="model_path is required")
+        
+        if not coin_ids:
+            raise HTTPException(status_code=400, detail="coin_ids is required")
+        
+        # Start Celery task
+        from backend.celery_app.create_app import celery_app
+        task_config = {
+            'model_path': model_path,
+            'coin_ids': coin_ids,
+            'evaluation_hours': evaluation_hours
+        }
+        
+        task = celery_app.send_task('backend.celery_app.tasks.evaluate_pred_time_task', kwargs=task_config)
+        
+        return {
+            "status": "started",
+            "task_id": task.id,
+            "config": task_config,
+            "message": f"Pred_time model evaluation started for {len(coin_ids)} coins"
+        }
+        
+    except Exception as e:
+        logger.exception("Failed to start Pred_time model evaluation")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.get("/pred_time/models/{agent_id}")
+async def get_pred_time_models(
+    agent_id: int,
+    _: str = Depends(verify_authorization_admin)
+):
+    """Get Pred_time models for a specific agent"""
+    try:
+        from core.database import db_helper
+        import os
+        from pathlib import Path
+        
+        models_dir = Path("models/pred_time")
+        agent_models = []
+        
+        if models_dir.exists():
+            for model_dir in models_dir.iterdir():
+                if model_dir.is_dir() and f"agent_{agent_id}_" in model_dir.name:
+                    # Check if model artifacts exist
+                    model_file = model_dir / "model.pth"
+                    config_file = model_dir / "config.json"
+                    metadata_file = model_dir / "metadata.json"
+                    
+                    if model_file.exists() and config_file.exists() and metadata_file.exists():
+                        try:
+                            with open(config_file, 'r') as f:
+                                config = json.load(f)
+                            
+                            with open(metadata_file, 'r') as f:
+                                metadata = json.load(f)
+                            
+                            # Get model size
+                            model_size = model_file.stat().st_size if model_file.exists() else 0
+                            
+                            agent_models.append({
+                                'model_path': str(model_dir),
+                                'model_name': model_dir.name,
+                                'config': config,
+                                'metadata': metadata,
+                                'model_size_bytes': model_size,
+                                'created_at': metadata.get('created_at'),
+                                'model_type': metadata.get('model_type')
+                            })
+                        except Exception as e:
+                            logger.warning(f"Failed to read model info from {model_dir}: {e}")
+                            continue
+        
+        # Sort by creation date (newest first)
+        agent_models.sort(key=lambda x: x.get('created_at', ''), reverse=True)
+        
+        return {
+            "status": "success",
+            "agent_id": agent_id,
+            "models": agent_models,
+            "count": len(agent_models)
+        }
+        
+    except Exception as e:
+        logger.exception(f"Failed to get Pred_time models for agent {agent_id}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.post("/pred_time/predict")
+async def make_pred_time_prediction(
+    request: dict,
+    _: str = Depends(verify_authorization_admin)
+):
+    """Make prediction using trained Pred_time model"""
+    try:
+        from core.services.pred_time_service import PredTimeService
+        from core.database import db_helper
+        import asyncio
+        
+        # Validate request
+        model_path = request.get('model_path')
+        coin_id = request.get('coin_id')
+        features = request.get('features')
+        
+        if not model_path:
+            raise HTTPException(status_code=400, detail="model_path is required")
+        
+        if not coin_id:
+            raise HTTPException(status_code=400, detail="coin_id is required")
+        
+        if not features:
+            raise HTTPException(status_code=400, detail="features is required")
+        
+        async def _run():
+            async with db_helper.get_session() as session:
+                # Initialize service
+                pred_time_service = PredTimeService()
+                
+                # Load model
+                model = await pred_time_service.load_model(model_path)
+                if not model:
+                    raise HTTPException(status_code=404, detail="Model not found or failed to load")
+                
+                # Convert features to numpy array
+                import numpy as np
+                features_array = np.array(features)
+                
+                # Make prediction
+                prediction = await pred_time_service.predict(model, features_array, coin_id)
+                if not prediction:
+                    raise HTTPException(status_code=500, detail="Prediction failed")
+                
+                return prediction
+        
+        result = asyncio.run(_run())
+        return {
+            "status": "success",
+            "prediction": result
+        }
+        
+    except Exception as e:
+        logger.exception("Failed to make Pred_time prediction")
+        if isinstance(e, HTTPException):
+            raise e
+        raise HTTPException(status_code=500, detail=str(e))
