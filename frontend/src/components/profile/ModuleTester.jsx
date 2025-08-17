@@ -186,30 +186,74 @@ function MetricsView({ agentType, task }) {
     const avgLoss = metrics.avg_loss ?? metrics.loss ?? meta.avg_loss;
     const samples = metrics.samples ?? metrics.sample_count;
     const coins = Array.isArray(metrics.coins) ? metrics.coins : [];
+    const rmse = metrics.rmse;
+    const mae = metrics.mae;
+    const mape = metrics.mape;
+    const directionAccuracy = metrics.direction_accuracy;
+    
     return (
-      <div className="mt-3 space-y-2">
-        <div className="flex flex-wrap gap-3">
-          {avgLoss !== undefined && (<span className="px-2 py-1 rounded bg-blue-100 text-blue-800 text-xs">avg_loss: {Number(avgLoss).toFixed(6)}</span>)}
-          {samples !== undefined && (<span className="px-2 py-1 rounded bg-green-100 text-green-800 text-xs">samples: {samples}</span>)}
+      <div className="mt-3 space-y-3">
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+          {avgLoss !== undefined && (
+            <div className="bg-blue-50 p-3 rounded-lg">
+              <div className="text-xs text-blue-600 font-medium">Средняя ошибка</div>
+              <div className="text-lg font-bold text-blue-800">{Number(avgLoss).toFixed(6)}</div>
+            </div>
+          )}
+          {rmse !== undefined && (
+            <div className="bg-green-50 p-3 rounded-lg">
+              <div className="text-xs text-green-600 font-medium">RMSE</div>
+              <div className="text-lg font-bold text-green-800">{Number(rmse).toFixed(6)}</div>
+            </div>
+          )}
+          {mae !== undefined && (
+            <div className="bg-amber-50 p-3 rounded-lg">
+              <div className="text-xs text-amber-600 font-medium">MAE</div>
+              <div className="text-lg font-bold text-amber-800">{Number(mae).toFixed(6)}</div>
+            </div>
+          )}
+          {mape !== undefined && (
+            <div className="bg-purple-50 p-3 rounded-lg">
+              <div className="text-xs text-purple-600 font-medium">MAPE</div>
+              <div className="text-lg font-bold text-purple-800">{Number(mape).toFixed(2)}%</div>
+            </div>
+          )}
         </div>
+        
+        {directionAccuracy !== undefined && (
+          <div className="bg-indigo-50 p-3 rounded-lg">
+            <div className="text-xs text-indigo-600 font-medium">Точность направления</div>
+            <div className="text-lg font-bold text-indigo-800">{(Number(directionAccuracy) * 100).toFixed(2)}%</div>
+          </div>
+        )}
+        
+        {samples !== undefined && (
+          <div className="bg-gray-50 p-3 rounded-lg">
+            <div className="text-xs text-gray-600 font-medium">Количество образцов</div>
+            <div className="text-lg font-bold text-gray-800">{samples}</div>
+          </div>
+        )}
+        
         {coins.length > 0 && (
-          <div className="mt-2">
-            <div className="text-xs text-gray-600 mb-1">Метрики по монетам</div>
+          <div className="bg-white border border-gray-200 rounded-lg p-4">
+            <div className="text-sm font-medium text-gray-700 mb-3">Метрики по монетам</div>
             <div className="overflow-x-auto">
-              <table className="min-w-full text-xs border rounded">
-                <thead className="bg-gray-100">
+              <table className="min-w-full text-sm">
+                <thead className="bg-gray-50">
                   <tr>
-                    <th className="px-2 py-1 text-left">coin_id</th>
-                    <th className="px-2 py-1 text-left">avg_loss</th>
-                    <th className="px-2 py-1 text-left">samples</th>
+                    <th className="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase">Монета</th>
+                    <th className="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase">Средняя ошибка</th>
+                    <th className="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase">Образцы</th>
+                    <th className="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase">RMSE</th>
                   </tr>
                 </thead>
-                <tbody>
+                <tbody className="divide-y divide-gray-200">
                   {coins.map((c, i) => (
-                    <tr key={i} className="odd:bg-white even:bg-gray-50">
-                      <td className="px-2 py-1">{c.coin_id ?? c.id ?? '-'}</td>
-                      <td className="px-2 py-1">{c.avg_loss !== undefined ? Number(c.avg_loss).toFixed(6) : '-'}</td>
-                      <td className="px-2 py-1">{c.samples ?? '-'}</td>
+                    <tr key={i} className="hover:bg-gray-50">
+                      <td className="px-3 py-2 font-medium text-gray-900">{c.coin_id ?? c.id ?? '-'}</td>
+                      <td className="px-3 py-2 text-gray-700">{c.avg_loss !== undefined ? Number(c.avg_loss).toFixed(6) : '-'}</td>
+                      <td className="px-3 py-2 text-gray-700">{c.samples ?? '-'}</td>
+                      <td className="px-3 py-2 text-gray-700">{c.rmse !== undefined ? Number(c.rmse).toFixed(6) : '-'}</td>
                     </tr>
                   ))}
                 </tbody>
@@ -222,50 +266,218 @@ function MetricsView({ agentType, task }) {
   }
 
   if (agentType === 'AgentTradeTime') {
-    const { precision, recall, f1, accuracy, confusion } = metrics;
+    const { precision, recall, f1, accuracy, confusion, roc_auc, pr_auc } = metrics;
+    
     return (
-      <div className="mt-3 space-y-2">
-        <div className="flex flex-wrap gap-3">
-          {accuracy !== undefined && (<span className="px-2 py-1 rounded bg-blue-100 text-blue-800 text-xs">accuracy: {Number(accuracy).toFixed(4)}</span>)}
-          {precision !== undefined && (<span className="px-2 py-1 rounded bg-amber-100 text-amber-800 text-xs">precision: {Number(precision).toFixed(4)}</span>)}
-          {recall !== undefined && (<span className="px-2 py-1 rounded bg-green-100 text-green-800 text-xs">recall: {Number(recall).toFixed(4)}</span>)}
-          {f1 !== undefined && (<span className="px-2 py-1 rounded bg-purple-100 text-purple-800 text-xs">f1: {Number(f1).toFixed(4)}</span>)}
+      <div className="mt-3 space-y-3">
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+          {accuracy !== undefined && (
+            <div className="bg-blue-50 p-3 rounded-lg">
+              <div className="text-xs text-blue-600 font-medium">Точность</div>
+              <div className="text-lg font-bold text-blue-800">{(Number(accuracy) * 100).toFixed(2)}%</div>
+            </div>
+          )}
+          {precision !== undefined && (
+            <div className="bg-amber-50 p-3 rounded-lg">
+              <div className="text-xs text-amber-600 font-medium">Precision</div>
+              <div className="text-lg font-bold text-amber-800">{(Number(precision) * 100).toFixed(2)}%</div>
+            </div>
+          )}
+          {recall !== undefined && (
+            <div className="bg-green-50 p-3 rounded-lg">
+              <div className="text-xs text-green-600 font-medium">Recall</div>
+              <div className="text-lg font-bold text-green-800">{(Number(recall) * 100).toFixed(2)}%</div>
+            </div>
+          )}
+          {f1 !== undefined && (
+            <div className="bg-purple-50 p-3 rounded-lg">
+              <div className="text-xs text-purple-600 font-medium">F1-Score</div>
+              <div className="text-lg font-bold text-purple-800">{(Number(f1) * 100).toFixed(2)}%</div>
+            </div>
+          )}
         </div>
+        
+        <div className="grid grid-cols-2 gap-3">
+          {roc_auc !== undefined && (
+            <div className="bg-indigo-50 p-3 rounded-lg">
+              <div className="text-xs text-indigo-600 font-medium">ROC-AUC</div>
+              <div className="text-lg font-bold text-indigo-800">{Number(roc_auc).toFixed(4)}</div>
+            </div>
+          )}
+          {pr_auc !== undefined && (
+            <div className="bg-pink-50 p-3 rounded-lg">
+              <div className="text-xs text-pink-600 font-medium">PR-AUC</div>
+              <div className="text-lg font-bold text-pink-800">{Number(pr_auc).toFixed(4)}</div>
+            </div>
+          )}
+        </div>
+        
         {confusion && Array.isArray(confusion) && (
-          <div className="text-xs text-gray-600">confusion: {JSON.stringify(confusion)}</div>
+          <div className="bg-white border border-gray-200 rounded-lg p-4">
+            <div className="text-sm font-medium text-gray-700 mb-3">Матрица ошибок</div>
+            <div className="overflow-x-auto">
+              <table className="min-w-full text-sm">
+                <thead className="bg-gray-50">
+                  <tr>
+                    <th className="px-3 py-2 text-center text-xs font-medium text-gray-500 uppercase">Действие</th>
+                    <th className="px-3 py-2 text-center text-xs font-medium text-gray-500 uppercase">Hold</th>
+                    <th className="px-3 py-2 text-center text-xs font-medium text-gray-500 uppercase">Buy</th>
+                    <th className="px-3 py-2 text-center text-xs font-medium text-gray-500 uppercase">Sell</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-gray-200">
+                  {['Hold', 'Buy', 'Sell'].map((action, i) => (
+                    <tr key={action}>
+                      <td className="px-3 py-2 text-center font-medium text-gray-900">{action}</td>
+                      {confusion[i]?.map((value, j) => (
+                        <td key={j} className="px-3 py-2 text-center text-gray-700">{value}</td>
+                      )) || Array(3).fill('-').map((_, j) => (
+                        <td key={j} className="px-3 py-2 text-center text-gray-700">-</td>
+                      ))}
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </div>
         )}
       </div>
     );
   }
 
   if (agentType === 'AgentRisk') {
-    const { avg_risk, max_drawdown, value_at_risk } = metrics;
+    const { avg_risk, max_drawdown, value_at_risk, expected_shortfall, violation_rate } = metrics;
+    
     return (
-      <div className="mt-3 flex flex-wrap gap-3">
-        {avg_risk !== undefined && (<span className="px-2 py-1 rounded bg-blue-100 text-blue-800 text-xs">avg_risk: {Number(avg_risk).toFixed(4)}</span>)}
-        {max_drawdown !== undefined && (<span className="px-2 py-1 rounded bg-red-100 text-red-800 text-xs">max_dd: {Number(max_drawdown).toFixed(4)}</span>)}
-        {value_at_risk !== undefined && (<span className="px-2 py-1 rounded bg-amber-100 text-amber-800 text-xs">VaR: {Number(value_at_risk).toFixed(4)}</span>)}
+      <div className="mt-3 space-y-3">
+        <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
+          {avg_risk !== undefined && (
+            <div className="bg-blue-50 p-3 rounded-lg">
+              <div className="text-xs text-blue-600 font-medium">Средний риск</div>
+              <div className="text-lg font-bold text-blue-800">{(Number(avg_risk) * 100).toFixed(2)}%</div>
+            </div>
+          )}
+          {max_drawdown !== undefined && (
+            <div className="bg-red-50 p-3 rounded-lg">
+              <div className="text-xs text-red-600 font-medium">Макс. просадка</div>
+              <div className="text-lg font-bold text-red-800">{(Number(max_drawdown) * 100).toFixed(2)}%</div>
+            </div>
+          )}
+          {value_at_risk !== undefined && (
+            <div className="bg-amber-50 p-3 rounded-lg">
+              <div className="text-xs text-amber-600 font-medium">VaR (95%)</div>
+              <div className="text-lg font-bold text-amber-800">{(Number(value_at_risk) * 100).toFixed(2)}%</div>
+            </div>
+          )}
+        </div>
+        
+        <div className="grid grid-cols-2 gap-3">
+          {expected_shortfall !== undefined && (
+            <div className="bg-purple-50 p-3 rounded-lg">
+              <div className="text-xs text-purple-600 font-medium">Expected Shortfall</div>
+              <div className="text-lg font-bold text-purple-800">{(Number(expected_shortfall) * 100).toFixed(2)}%</div>
+            </div>
+          )}
+          {violation_rate !== undefined && (
+            <div className="bg-indigo-50 p-3 rounded-lg">
+              <div className="text-xs text-indigo-600 font-medium">Частота нарушений</div>
+              <div className="text-lg font-bold text-indigo-800">{(Number(violation_rate) * 100).toFixed(2)}%</div>
+            </div>
+          )}
+        </div>
       </div>
     );
   }
 
   if (agentType === 'AgentTradeAggregator') {
-    const { Sharpe, PnL, win_rate } = metrics;
+    const { Sharpe, PnL, win_rate, max_drawdown, turnover_rate, exposure_stats } = metrics;
+    
     return (
-      <div className="mt-3 flex flex-wrap gap-3">
-        {Sharpe !== undefined && (<span className="px-2 py-1 rounded bg-purple-100 text-purple-800 text-xs">Sharpe: {Sharpe}</span>)}
-        {PnL !== undefined && (<span className="px-2 py-1 rounded bg-green-100 text-green-800 text-xs">PnL: {PnL}</span>)}
-        {win_rate !== undefined && (<span className="px-2 py-1 rounded bg-blue-100 text-blue-800 text-xs">win_rate: {win_rate}</span>)}
+      <div className="mt-3 space-y-3">
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+          {Sharpe !== undefined && (
+            <div className="bg-purple-50 p-3 rounded-lg">
+              <div className="text-xs text-purple-600 font-medium">Коэффициент Шарпа</div>
+              <div className="text-lg font-bold text-purple-800">{Number(Sharpe).toFixed(3)}</div>
+            </div>
+          )}
+          {PnL !== undefined && (
+            <div className="bg-green-50 p-3 rounded-lg">
+              <div className="text-xs text-green-600 font-medium">PnL</div>
+              <div className="text-lg font-bold text-green-800">{Number(PnL).toFixed(2)}</div>
+            </div>
+          )}
+          {win_rate !== undefined && (
+            <div className="bg-blue-50 p-3 rounded-lg">
+              <div className="text-xs text-blue-600 font-medium">Процент выигрышей</div>
+              <div className="text-lg font-bold text-blue-800">{(Number(win_rate) * 100).toFixed(2)}%</div>
+            </div>
+          )}
+          {max_drawdown !== undefined && (
+            <div className="bg-red-50 p-3 rounded-lg">
+              <div className="text-xs text-red-600 font-medium">Макс. просадка</div>
+              <div className="text-lg font-bold text-red-800">{(Number(max_drawdown) * 100).toFixed(2)}%</div>
+            </div>
+          )}
+        </div>
+        
+        <div className="grid grid-cols-2 gap-3">
+          {turnover_rate !== undefined && (
+            <div className="bg-amber-50 p-3 rounded-lg">
+              <div className="text-xs text-amber-600 font-medium">Оборот</div>
+              <div className="text-lg font-bold text-amber-800">{(Number(turnover_rate) * 100).toFixed(2)}%</div>
+            </div>
+          )}
+          {exposure_stats && (
+            <div className="bg-indigo-50 p-3 rounded-lg">
+              <div className="text-xs text-indigo-600 font-medium">Статистика экспозиции</div>
+              <div className="text-sm font-bold text-indigo-800">
+                {typeof exposure_stats === 'object' ? 
+                  `Средняя: ${(exposure_stats.avg || 0).toFixed(2)}%` : 
+                  'Доступна'
+                }
+              </div>
+            </div>
+          )}
+        </div>
       </div>
     );
   }
 
   if (agentType === 'AgentNews') {
     const updated = metrics.updated ?? metrics.coins?.length;
+    const correlation = metrics.correlation;
+    const sentimentAccuracy = metrics.sentiment_accuracy;
+    
     return (
-      <div className="mt-3 flex flex-wrap gap-3">
-        {updated !== undefined && (<span className="px-2 py-1 rounded bg-blue-100 text-blue-800 text-xs">coins updated: {updated}</span>)}
-        {meta.progress !== undefined && (<span className="px-2 py-1 rounded bg-gray-100 text-gray-800 text-xs">progress: {meta.progress}%</span>)}
+      <div className="mt-3 space-y-3">
+        <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
+          {updated !== undefined && (
+            <div className="bg-blue-50 p-3 rounded-lg">
+              <div className="text-xs text-blue-600 font-medium">Монет обновлено</div>
+              <div className="text-lg font-bold text-blue-800">{updated}</div>
+            </div>
+          )}
+          {correlation !== undefined && (
+            <div className="bg-green-50 p-3 rounded-lg">
+              <div className="text-xs text-green-600 font-medium">Корреляция</div>
+              <div className="text-lg font-bold text-green-800">{Number(correlation).toFixed(4)}</div>
+            </div>
+          )}
+          {sentimentAccuracy !== undefined && (
+            <div className="bg-purple-50 p-3 rounded-lg">
+              <div className="text-xs text-purple-600 font-medium">Точность сентимента</div>
+              <div className="text-lg font-bold text-purple-800">{sentimentAccuracy}</div>
+            </div>
+          )}
+        </div>
+        
+        {meta.progress !== undefined && (
+          <div className="bg-gray-50 p-3 rounded-lg">
+            <div className="text-xs text-gray-600 font-medium">Прогресс обработки</div>
+            <div className="text-lg font-bold text-gray-800">{meta.progress}%</div>
+          </div>
+        )}
       </div>
     );
   }
