@@ -6,7 +6,7 @@ from backend.app.configuration import Server, verify_authorization_admin
 from backend.app.configuration.schemas import PipelineConfig
 from backend.celery_app.create_app import celery_app
 from core.database import db_helper
-from core.database.models.process_models import Pipeline as PipelineModel
+from core.database.models.process_models import Pipeline as PipelineModel, Backtest as BacktestModel
 
 router = APIRouter(prefix="/pipeline", tags=["Pipeline"])
 
@@ -57,5 +57,32 @@ async def revoke_pipeline_task(task_id: str, _: str = Depends(verify_authorizati
     except Exception:
         pass
     return {"status": "revoked", "task_id": task_id}
+
+
+@router.get("/backtests")
+async def list_backtests(_: str = Depends(verify_authorization_admin)):
+    async with db_helper.get_session() as session:
+        rows = (await session.execute(
+            BacktestModel.__table__.select().order_by(BacktestModel.id.desc()).limit(100)
+        )).mappings().all()
+        return [dict(r) for r in rows]
+
+
+@router.get("/backtests/{bt_id}")
+async def get_backtest(bt_id: int, _: str = Depends(verify_authorization_admin)):
+    async with db_helper.get_session() as session:
+        obj = await session.get(BacktestModel, bt_id)
+        if not obj:
+            raise HTTPException(status_code=404, detail="Backtest not found")
+        return {
+            "id": obj.id,
+            "pipeline_id": obj.pipeline_id,
+            "timeframe": obj.timeframe,
+            "start": obj.start.isoformat() if obj.start else None,
+            "end": obj.end.isoformat() if obj.end else None,
+            "metrics_json": obj.metrics_json,
+            "artifacts": obj.artifacts,
+            "created_at": obj.created_at.isoformat() if obj.created_at else None,
+        }
 
 

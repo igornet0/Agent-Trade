@@ -23,6 +23,7 @@ from core.utils.metrics import (
     aggregate_returns_equal_weight,
 )
 from core.database.models.main_models import NewsHistoryCoin, News
+from core.database.models.process_models import Backtest as BacktestModel
 from core.database.orm_query import (
     orm_get_agent_by_id,
     orm_get_train_agent,
@@ -586,6 +587,23 @@ def run_pipeline_backtest_task(self, config_json: dict | None = None, timeframe:
                 'artifacts': artifacts,
                 'per_coin_pnl': per_coin_pnl,
             })
+            # persist backtest row
+            try:
+                async with db_helper.get_session() as session:
+                    bt = BacktestModel(
+                        pipeline_id=None,
+                        timeframe=tf,
+                        start=start_dt,
+                        end=end_dt,
+                        config_json=cfg,
+                        metrics_json=metrics,
+                        artifacts=artifacts,
+                    )
+                    session.add(bt)
+                    await session.commit()
+            except Exception:
+                pass
+
             self.update_state(state='SUCCESS', meta={'progress': 100, 'message': 'Готово', 'metrics': metrics})
             return {"status": "success", "metrics": metrics}
         except Exception as e:
