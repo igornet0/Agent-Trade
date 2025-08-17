@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { FaInfoCircle, FaChartLine, FaExclamationTriangle } from 'react-icons/fa';
 import { listModels, trainModel, evaluateModel, getTaskStatus, promoteModel } from '../../services/mlService';
 import ModelTrainForm from '../ml/ModelTrainForm';
+import NewsTrainPanel from '../ml/NewsTrainPanel';
 
 const ModelsTabContent = () => {
   const [models, setModels] = useState([
@@ -150,6 +151,8 @@ const ModelsTabContent = () => {
       </div>
 
       <ModelTrainForm />
+
+      <NewsTrainPanel />
 
       {selectedModel && (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
