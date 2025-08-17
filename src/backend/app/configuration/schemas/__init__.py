@@ -8,14 +8,14 @@ __all__ = ("CoinResponse", "UserResponse", "UserLoginResponse",
            "TrainData", "StrategyCreate", "StrategyResponse", "StrategyModelsUpdate",
            "EvaluateRequest", "EvaluateResponse")
 
-from backend.app.configuration.schemas.coin import CoinData, CoinResponse, TimeLineCoin, CoinResponseData
-from backend.app.configuration.schemas.user import UserResponse, UserLoginResponse, TokenData, Token
-from backend.app.configuration.schemas.order import (OrderResponse, 
+from .coin import CoinData, CoinResponse, TimeLineCoin, CoinResponseData
+from .user import UserResponse, UserLoginResponse, TokenData, Token
+from .order import (OrderResponse, 
                                                      OrderCreate, 
                                                      OrderCancel, 
                                                      OrderType,
                                                      OrderUpdateAmount)
-from backend.app.configuration.schemas.agent import (AgentResponse, AgentTypeResponse, FeatureTypeResponse,
+from .agent import (AgentResponse, AgentTypeResponse, FeatureTypeResponse,
                                                      AgentCreate, AgentTrainResponse, TrainData,
                                                      AgentType,
                                                      AgentTrade,
@@ -23,4 +23,4 @@ from backend.app.configuration.schemas.agent import (AgentResponse, AgentTypeRes
                                                      AgentStata,
                                                      AgentAction,
                                                      EvaluateRequest, EvaluateResponse)
-from backend.app.configuration.schemas.strategy import (StrategyCreate, StrategyResponse, StrategyModelsUpdate)
+from .strategy import (CreateStrategyResponse, StrategyResponse, StrategyModelsUpdate)

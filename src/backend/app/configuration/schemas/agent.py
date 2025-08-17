@@ -12,6 +12,8 @@ class AgentType(str, PyEnum):
     PREDTIME = 'AgentPredTime'
     TRADETIME = 'AgentTradeTime'
     NEWS = 'AgentNews'
+    RISK = 'AgentRisk'
+    TRADE_AGGREGATOR = 'AgentTradeAggregator'
 
 class FeatureType(str, PyEnum):
     pass

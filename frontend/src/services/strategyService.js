@@ -29,11 +29,11 @@ export const get_coin_time_line = async (coinsDataTimeLine) => {
   return response.data;
 };
 
-export const get_agents = async (status=null) => {
-  
+export const get_agents = async (status=null, type=null) => {
   const response = await api.get('/api_db_agent/agents/', {
     params: {
-      status: status
+      status: status,
+      type: type
     }
   });
 

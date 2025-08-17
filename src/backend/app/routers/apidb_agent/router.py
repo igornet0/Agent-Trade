@@ -119,10 +119,11 @@ async def get_agent_by_id(agent_data: AgentResponse,
 
 @router.get("/agents/", response_model=list[AgentResponse])
 async def get_agents(status: str | None = None,
+                    type: str | None = None,
                     _: User = Depends(verify_authorization_admin), 
                     db: AsyncSession = Depends(Server.get_db)):
     try:
-        agents = await orm_get_agents(db, status=status)
+        agents = await orm_get_agents(db, type_agent=type, status=status)
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Agents failed: {str(e)}")
     
