@@ -3,6 +3,8 @@ from sqlalchemy.ext.asyncio import AsyncSession
 import asyncio
 import json
 import logging
+import time
+from datetime import datetime
 
 from core.database import db_helper
 from core.database.orm_query import (
@@ -249,6 +251,49 @@ def evaluate_trade_aggregator_task(self, strategy_config: dict | None = None):
         return {"status": "success", "metrics": metrics}
     except Exception as e:
         logger.exception("evaluate_trade_aggregator_task failed")
+        return {"status": "error", "detail": str(e)}
+
+
+@celery_app.task(bind=True)
+def run_pipeline_backtest_task(self, config_json: dict | None = None, timeframe: str | None = None,
+                               start: str | None = None, end: str | None = None):
+    try:
+        cfg = config_json or {}
+        steps = [
+            ('load_data', 'Загрузка данных'),
+            ('features', 'Расчет индикаторов'),
+            ('merge_news', 'Объединение с новостным фоном'),
+            ('pred_time', 'Прогноз цены'),
+            ('trade_time', 'Сигналы buy/sell/hold'),
+            ('risk', 'Оценка риска'),
+            ('trade', 'Агрегация и трейдинг'),
+            ('metrics', 'Подсчет метрик')
+        ]
+
+        metrics: dict = {
+            'nodes_count': len(cfg.get('nodes', [])),
+            'edges_count': len(cfg.get('edges', [])),
+            'Sharpe': 0.0,
+            'PnL': 0.0,
+            'WinRate': 0.0,
+        }
+
+        total = len(steps)
+        for i, (code, title) in enumerate(steps, start=1):
+            progress = int(i / total * 100)
+            self.update_state(state='PROGRESS', meta={'progress': progress, 'step': code, 'message': title, 'metrics': metrics})
+            time.sleep(0.2)  # имитация работы
+
+        # финальные метрики-заглушки
+        metrics.update({
+            'Sharpe': 1.23,
+            'PnL': 0.045,
+            'WinRate': 0.61,
+        })
+        self.update_state(state='SUCCESS', meta={'progress': 100, 'message': 'Готово', 'metrics': metrics})
+        return {"status": "success", "metrics": metrics}
+    except Exception as e:
+        logger.exception("run_pipeline_backtest_task failed")
         return {"status": "error", "detail": str(e)}
 
     # db = SessionLocal()
