@@ -1,6 +1,8 @@
 import React, { useState, useEffect } from 'react';
 import { get_coins, get_agents } from '../../services/strategyService';
 import { get_agent_types, get_available_features, train_new_agent } from '../../services/strategyService';
+import NewsTrainPanel from './NewsTrainPanel';
+import PredTimeTrainPanel from './PredTimeTrainPanel';
 
 const TrainAgentModal = ({ isOpen, onClose, onAgentTrained }) => {
   const [newAgentName, setNewAgentName] = useState('');
@@ -20,6 +22,39 @@ const TrainAgentModal = ({ isOpen, onClose, onAgentTrained }) => {
   const [learningRate, setLearningRate] = useState(0.001);
   const [weightDecay, setWeightDecay] = useState(0.0001);
   const [useRandomFeatures, setUseRandomFeatures] = useState(false);
+
+  // New ML-specific configuration states
+  const [newsConfig, setNewsConfig] = useState({
+    nlp_model: 'finbert',
+    window_hours: 24,
+    decay_factor: 0.95,
+    correlation_threshold: 0.3,
+    sources: ['twitter', 'telegram'],
+    min_sources: 2,
+    force_recalculate: false
+  });
+
+  const [predTimeConfig, setPredTimeConfig] = useState({
+    seq_len: 60,
+    pred_len: 12,
+    model_type: 'LSTM',
+    hidden_size: 128,
+    num_layers: 2,
+    d_model: 256,
+    n_heads: 8,
+    n_layers: 6,
+    d_ff: 1024,
+    dropout: 0.2,
+    batch_size: 32,
+    learning_rate: 0.001,
+    epochs: 100,
+    patience: 20,
+    technical_indicators: ['SMA', 'RSI', 'MACD'],
+    news_integration: true,
+    feature_scaling: 'standard',
+    val_split: 0.2,
+    test_split: 0.1
+  });
 
   const Timeframe = [
     {"id":1, "value": '5m'},
@@ -45,6 +80,39 @@ const TrainAgentModal = ({ isOpen, onClose, onAgentTrained }) => {
     setWeightDecay(0.0001);
     setTrainingError(null);
     setUseRandomFeatures(false);
+    
+    // Reset ML configs
+    setNewsConfig({
+      nlp_model: 'finbert',
+      window_hours: 24,
+      decay_factor: 0.95,
+      correlation_threshold: 0.3,
+      sources: ['twitter', 'telegram'],
+      min_sources: 2,
+      force_recalculate: false
+    });
+    
+    setPredTimeConfig({
+      seq_len: 60,
+      pred_len: 12,
+      model_type: 'LSTM',
+      hidden_size: 128,
+      num_layers: 2,
+      d_model: 256,
+      n_heads: 8,
+      n_layers: 6,
+      d_ff: 1024,
+      dropout: 0.2,
+      batch_size: 32,
+      learning_rate: 0.001,
+      epochs: 100,
+      patience: 20,
+      technical_indicators: ['SMA', 'RSI', 'MACD'],
+      news_integration: true,
+      feature_scaling: 'standard',
+      val_split: 0.2,
+      test_split: 0.1
+    });
   };
 
   useEffect(() => {
@@ -81,6 +149,7 @@ const TrainAgentModal = ({ isOpen, onClose, onAgentTrained }) => {
   };
 
   const isAgentNews = selectedAgentType === 'AgentNews';
+  const isAgentPredTime = selectedAgentType === 'AgentPredTime';
 
   const handleAgentTypeChange = (value) => {
     setSelectedAgentType(value);
@@ -138,7 +207,9 @@ const TrainAgentModal = ({ isOpen, onClose, onAgentTrained }) => {
           name: f.feature,
           parameters: f.params
         })),
-        coins: selectedCoins 
+        coins: selectedCoins,
+        // Add ML-specific configuration
+        extra_config: isAgentNews ? newsConfig : isAgentPredTime ? predTimeConfig : {}
       };
       
       await train_new_agent(agentData);
@@ -401,7 +472,22 @@ const TrainAgentModal = ({ isOpen, onClose, onAgentTrained }) => {
             </div>
             </>
           )}
-          
+
+          {/* ML Configuration Panels */}
+          {isAgentNews && (
+            <div className="border-t border-gray-200 pt-4 mb-4">
+              <h4 className="text-lg font-semibold text-gray-700 mb-4">Конфигурация News модели</h4>
+              <NewsTrainPanel config={newsConfig} onChange={setNewsConfig} />
+            </div>
+          )}
+
+          {isAgentPredTime && (
+            <div className="border-t border-gray-200 pt-4 mb-4">
+              <h4 className="text-lg font-semibold text-gray-700 mb-4">Конфигурация Pred_time модели</h4>
+              <PredTimeTrainPanel config={predTimeConfig} onChange={setPredTimeConfig} />
+            </div>
+          )}
+
           {!isAgentNews && (
           <div className="border-t border-gray-200 pt-4 mb-4">
             <div className="flex justify-between items-center mb-4">

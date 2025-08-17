@@ -86,6 +86,32 @@ const ProfileSidebar = ({ activeTab, setActiveTab, onLogout }) => {
             </button>
           </li>
           <li>
+            <button 
+              className={`w-full text-left p-3 rounded-lg transition ${activeTab === 'ml_studio' ? 'bg-white text-blue-900' : 'hover:bg-blue-800'}`}
+              onClick={() => setActiveTab('ml_studio')}
+            >
+              <div className="flex items-center">
+                <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 mr-2" viewBox="0 0 20 20" fill="currentColor">
+                  <path fillRule="evenodd" d="M3 4a1 1 0 011-1h12a1 1 0 110 2H4a1 1 0 01-1-1zm0 4a1 1 0 011-1h12a1 1 0 110 2H4a1 1 0 01-1-1zm0 4a1 1 0 011-1h12a1 1 0 110 2H4a1 1 0 01-1-1zm0 4a1 1 0 011-1h12a1 1 0 110 2H4a1 1 0 01-1-1z" clipRule="evenodd" />
+                </svg>
+                <span>ML Studio</span>
+              </div>
+            </button>
+          </li>
+          <li>
+            <button 
+              className={`w-full text-left p-3 rounded-lg transition ${activeTab === 'pipeline' ? 'bg-white text-blue-900' : 'hover:bg-blue-800'}`}
+              onClick={() => setActiveTab('pipeline')}
+            >
+              <div className="flex items-center">
+                <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 mr-2" viewBox="0 0 20 20" fill="currentColor">
+                  <path fillRule="evenodd" d="M12.316 3.051a1 1 0 01.633 1.265l-4 12a1 1 0 11-1.898-.632l4-12a1 1 0 011.265-.633zM5.707 6.293a1 1 0 010 1.414L3.414 10l2.293 2.293a1 1 0 11-1.414 1.414l-3-3a1 1 0 010-1.414l3-3a1 1 0 011.414 0zm8.586 0a1 1 0 011.414 0l3 3a1 1 0 010 1.414l-3 3a1 1 0 11-1.414-1.414L16.586 10l-2.293-2.293a1 1 0 010-1.414z" clipRule="evenodd" />
+                </svg>
+                <span>Pipeline</span>
+              </div>
+            </button>
+          </li>
+          <li>
             <button
               className={`flex items-center space-x-2 px-4 py-2 rounded-lg transition ${
                 activeTab === 'strategys' ? 'bg-white text-blue-900' : 'hover:bg-blue-800'
