@@ -4,10 +4,11 @@ import asyncio
 import json
 import logging
 import time
-from datetime import datetime
+from datetime import datetime, timedelta
 import math
 import os
 from uuid import uuid4
+from sqlalchemy import select
 
 from core.database import db_helper
 from core.database.orm.market import (
@@ -21,6 +22,7 @@ from core.utils.metrics import (
     sortino_ratio,
     aggregate_returns_equal_weight,
 )
+from core.database.models.main_models import NewsHistoryCoin, News
 from core.database.orm_query import (
     orm_get_agent_by_id,
     orm_get_train_agent,
@@ -363,19 +365,98 @@ def run_pipeline_backtest_task(self, config_json: dict | None = None, timeframe:
                         sma.append(None)
                 per_asset_sma.append(sma)
 
-            # 3) Merge news (placeholder)
+            # 3) Merge news background
             step(3, *steps[2])
+            news_node = next((n for n in nodes if n.get('type') == 'News'), None)
+            news_window_bars = 288
+            if news_node and isinstance(news_node.get('config'), dict):
+                news_window_bars = int(news_node['config'].get('window', news_window_bars))
+
+            # Parse timeframe into timedelta per bar
+            def parse_tf(s: str) -> timedelta:
+                try:
+                    num = int(''.join([ch for ch in s if ch.isdigit()]))
+                    unit = ''.join([ch for ch in s if ch.isalpha()])
+                    unit = unit.lower()
+                    if unit in ('m', 'min', 'mins', 'minute', 'minutes'):
+                        return timedelta(minutes=num)
+                    if unit in ('h', 'hour', 'hours'):
+                        return timedelta(hours=num)
+                    if unit in ('d', 'day', 'days'):
+                        return timedelta(days=num)
+                    if unit in ('s', 'sec', 'second', 'seconds'):
+                        return timedelta(seconds=num)
+                except Exception:
+                    pass
+                return timedelta(minutes=5)
+
+            bar_dt = parse_tf(tf)
+            start_dt = None
+            end_dt = None
+            if datetimes:
+                try:
+                    start_dt = datetime.fromisoformat(datetimes[-min_len]) if min_len > 0 else None
+                    end_dt = datetime.fromisoformat(datetimes[-1])
+                except Exception:
+                    start_dt = None
+                    end_dt = None
+
+            # Load news for all requested coins in [start_dt, end_dt]
+            per_asset_news_idx: list[list[float]] = []
+            if start_dt and end_dt and coin_ids:
+                async with db_helper.get_session() as session:
+                    result = await session.execute(
+                        select(NewsHistoryCoin.coin_id, News.date, NewsHistoryCoin.score)
+                        .join(News, News.id == NewsHistoryCoin.id_news)
+                        .where(NewsHistoryCoin.coin_id.in_(coin_ids))
+                        .where(News.date >= start_dt - news_window_bars * bar_dt)
+                        .where(News.date <= end_dt)
+                    )
+                    rows = result.all()
+                # Build per-coin list of (date, score)
+                coin_to_events: dict[int, list[tuple[datetime, float]]] = {cid: [] for cid in coin_ids}
+                for cid, ndt, sc in rows:
+                    coin_to_events.setdefault(cid, []).append((ndt, float(sc)))
+                for cid in coin_ids:
+                    events = sorted(coin_to_events.get(cid, []), key=lambda x: x[0])
+                    # Build rolling sum over bars
+                    idx_series: list[float] = []
+                    left = 0
+                    right = 0
+                    cur_sum = 0.0
+                    for i in range(min_len):
+                        bt = end_dt - (min_len - 1 - i) * bar_dt
+                        window_start = bt - news_window_bars * bar_dt
+                        # advance right pointer
+                        while right < len(events) and events[right][0] <= bt:
+                            cur_sum += events[right][1]
+                            right += 1
+                        # advance left pointer (drop old)
+                        while left < right and events[left][0] < window_start:
+                            cur_sum -= events[left][1]
+                            left += 1
+                        idx_series.append(cur_sum)
+                    per_asset_news_idx.append(idx_series)
+            else:
+                per_asset_news_idx = [[0.0] * min_len for _ in per_asset_closes]
 
             # 4) Pred_time: naive direction vs SMA
             step(4, *steps[3])
             per_asset_pred_dir: list[list[int]] = []
-            for closes, sma in zip(per_asset_closes, per_asset_sma):
+            for asset_i, (closes, sma) in enumerate(zip(per_asset_closes, per_asset_sma)):
                 pred_dir = []  # 1 up, -1 down, 0 none
                 for i, c in enumerate(closes):
                     if sma[i] is None:
                         pred_dir.append(0)
                     else:
-                        pred_dir.append(1 if c > sma[i] else -1)
+                        base = 1 if c > sma[i] else -1
+                        # Blend simple news influence (normalized) with base direction
+                        news_val = per_asset_news_idx[asset_i][i] if asset_i < len(per_asset_news_idx) else 0.0
+                        if news_val != 0.0:
+                            pred = base + 0.2 * (1 if news_val > 0 else -1)
+                            pred_dir.append(1 if pred > 0.5 else (-1 if pred < -0.5 else 0))
+                        else:
+                            pred_dir.append(base)
                 per_asset_pred_dir.append(pred_dir)
 
             # 5) Trade_time: thresholding -> keep same as pred_dir (simplified)
