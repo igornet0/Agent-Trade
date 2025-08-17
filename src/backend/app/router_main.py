@@ -5,7 +5,7 @@ from fastapi.responses import RedirectResponse
 
 from core.database import User
 from core.database.orm_query import orm_get_coin_by_name
-from backend.app.configuration import Server, CoinResponse
+from app.configuration import Server, CoinResponse
 
 import logging
 

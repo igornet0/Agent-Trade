@@ -23,6 +23,9 @@ class Exhange(Box):
         self.trade_log = {}
 
         self.orders: dict[Coin,list[Transaction]] = {}
+        # initialize order books
+        self.buy_orders: dict[Coin, list[Transaction]] = {}
+        self.sell_orders: dict[Coin, list[Transaction]] = {}
 
         self.history_volume: dict[Coin, list[float]] = {}
     
@@ -36,7 +39,7 @@ class Exhange(Box):
         return self.coins
     
     def cancel_order(self, order_cancel: Transaction):
-        if order_cancel.order_type == 'buy':
+        if order_cancel.type == 'buy':
             if self.buy_orders.get(order_cancel.coin, 0):
                 for i, order in enumerate(self.buy_orders[order_cancel.coin]):
                     if order == order_cancel:
@@ -45,7 +48,7 @@ class Exhange(Box):
                 if not self.buy_orders[order_cancel.coin]:
                     del self.buy_orders[order_cancel.coin]
 
-        elif order_cancel.order_type == 'sell':
+        elif order_cancel.type == 'sell':
             if self.sell_orders.get(order_cancel.coin, 0):
                 for i, order in enumerate(self.sell_orders[order_cancel.coin]):
                     if order == order_cancel:
@@ -62,10 +65,10 @@ class Exhange(Box):
         
         # self.logger["WARNING EXCHANGE"](order)
 
-        if order.order_type == 'buy':
+        if order.type == 'buy':
             self.buy_orders.setdefault(order.coin, []).append(order)
 
-        elif order.order_type == 'sell':
+        elif order.type == 'sell':
             self.sell_orders.setdefault(order.coin, []).append(order)
 
     def match_orders(self):
@@ -92,7 +95,7 @@ class Exhange(Box):
                 # Если лучшая цена на покупку >= лучшей цены на продажу, исполняем сделку
                 if highest_buy.price >= lowest_sell.price:
                     # Количество актива, которое может быть исполнено
-                    quantity_traded = min(highest_buy.quantity, lowest_sell.quantity)
+                    quantity_traded = min(highest_buy.amount, lowest_sell.amount)
                     trade_price = (highest_buy.price + lowest_sell.price) / 2  # Средняя цена
 
                     # Обновляем балансы агентов
@@ -100,8 +103,8 @@ class Exhange(Box):
                     lowest_sell.user.execute_trade('sell', coin, trade_price, quantity_traded)
 
                     # Уменьшаем количество в ордерах
-                    highest_buy.quantity -= quantity_traded
-                    lowest_sell.quantity -= quantity_traded
+                    highest_buy.amount -= quantity_traded
+                    lowest_sell.amount -= quantity_traded
 
                     # Удаляем полностью исполненные ордера
                     if highest_buy.quantity == 0:

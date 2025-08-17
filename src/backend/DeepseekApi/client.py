@@ -67,11 +67,11 @@ class DSClient:
             result = json.loads(json_match.group())
             
             # Валидация результата
-            for ticker, score in result.items():
-                if not isinstance(score, (int, float)):
-                    raise TypeError(f"Некорректный тип значения для {ticker}")
-                if score < -100 or score > 100:
-                    raise ValueError(f"Значение {score} выходит за пределы диапазона")
+            # for ticker, score in result.items():
+            #     if not isinstance(score, (int, float)):
+            #         raise TypeError(f"Некорректный тип значения для {ticker}")
+            #     if score < -100 or score > 100:
+            #         raise ValueError(f"Значение {score} выходит за пределы диапазона")
             
             return result
             
@@ -89,7 +89,6 @@ class DSClient:
             ]
         }
         """
-        print(data)
         results = {}
         analysis = data.get("analysis", [])
         

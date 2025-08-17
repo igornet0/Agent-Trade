@@ -16,7 +16,7 @@ __pycache__/
 *.pth
 .DS_Store
 *.zip
-/data/*
+src/data/*
 !/data/coins_list.csv
 /node_modules
 /.pnp

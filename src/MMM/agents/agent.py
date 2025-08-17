@@ -7,7 +7,7 @@ from typing import Dict, Any, Union, Generator, Tuple, Literal, List, Union
 import numpy as np
 import pandas as pd
 
-from backend.Dataset.indicators import Indicators
+from Dataset.indicators import Indicators
 
 import logging
 
@@ -291,6 +291,10 @@ class Agent:
         if self.data_normalize:
             new_data = self.normalize_data(new_data)
 
+        # Приведение типов и чистка NaN/строк
+        numeric_cols = [c for c in new_data.columns if c not in ("datetime",)]
+        for c in numeric_cols:
+            new_data[c] = pd.to_numeric(new_data[c], errors='coerce')
         new_data = new_data.dropna()
 
         if len(new_data) == 0:

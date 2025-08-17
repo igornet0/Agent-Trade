@@ -16,21 +16,21 @@ from core.database.orm_query import (Coin, User, Transaction, Portfolio,
                                      orm_get_user_coin_transactions,
                                      orm_get_coin_portfolio)
 
-from backend.Dataset import DatasetTimeseries
-from backend.app.configuration import (Server, 
-                                       TimeLineCoin,
-                                       CoinData,
-                                       CoinResponse,
-                                       CoinResponseData,
-                                    #    CreateStrategyResponse,
-                                    #    StrategyResponse,
-                                       UserResponse,
-                                       OrderUpdateAmount,
-                                       OrderResponse,
-                                       OrderCreate,
-                                       OrderCancel,
-                                       OrderType,
-                                       verify_authorization)
+from src.Dataset import DatasetTimeseries
+from app.configuration import (Server,
+                                TimeLineCoin,
+                                CoinData,
+                                CoinResponse,
+                                CoinResponseData,
+                            #    CreateStrategyResponse,
+                            #    StrategyResponse,
+                                UserResponse,
+                                OrderUpdateAmount,
+                                OrderResponse,
+                                OrderCreate,
+                                OrderCancel,
+                                OrderType,
+                                verify_authorization)
 
 # Инициализация роутера
 router = APIRouter(

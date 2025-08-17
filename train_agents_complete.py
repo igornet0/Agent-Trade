@@ -24,8 +24,12 @@ device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 print(f"Используется устройство: {device}")
 
 # Импортируем существующие модели ML
-from backend.MMM.models.model_trade import TradingModel
-from backend.MMM.models.model_ltsm import LTSMTimeFrame
+try:
+    from MMM.models.model_trade import TradingModel
+    from MMM.models.model_ltsm import LTSMTimeFrame
+except ModuleNotFoundError:
+    from src.MMM.models.model_trade import TradingModel
+    from src.MMM.models.model_ltsm import LTSMTimeFrame
 
 # Класс для создания торговых меток
 class TradingLabelGenerator:
@@ -90,6 +94,10 @@ class CryptoDataset(Dataset):
         """Подготавливает признаки для модели"""
         # Базовые признаки
         feature_cols = ['open', 'close', 'max', 'min', 'volume']
+        for c in feature_cols:
+            if c in self.data.columns:
+                self.data[c] = pd.to_numeric(self.data[c], errors='coerce')
+        self.data = self.data.dropna(subset=feature_cols)
         features = self.data[feature_cols].values
         
         # Технические индикаторы
@@ -223,14 +231,17 @@ class ModelEnsemble:
         total_weight = sum(self.weights)
         self.weights = [w / total_weight for w in self.weights]
     
-    def predict(self, x: torch.Tensor, time_data: torch.Tensor) -> torch.Tensor:
+    def predict(self, x: torch.Tensor, time_data: torch.Tensor, pred_len: int = 5) -> torch.Tensor:
         """Делает предсказание используя ансамбль"""
         predictions = []
         
         for model, weight in zip(self.models, self.weights):
             model.eval()
             with torch.no_grad():
-                pred = model(x, x, time_data)  # Используем x как x_pred для совместимости
+                # Формируем заглушку для x_pred нужной формы [B, pred_len]
+                batch_size = x.size(0)
+                x_pred_stub = torch.zeros((batch_size, pred_len), device=x.device, dtype=x.dtype)
+                pred = model(x, x_pred_stub, time_data)
                 predictions.append(pred * weight)
         
         # Объединяем предсказания
@@ -383,7 +394,8 @@ class AdaptiveLearningAgent:
             optimizer.zero_grad()
             
             # Предсказание
-            outputs = model(sequence, sequence, time_data)
+            x_pred_stub = torch.zeros((sequence.size(0), self.pred_len), device=self.device, dtype=sequence.dtype)
+            outputs = model(sequence, x_pred_stub, time_data)
             
             # Вычисляем потери для каждого шага предсказания
             loss = 0
@@ -411,7 +423,8 @@ class AdaptiveLearningAgent:
                 time_data = time_data.to(self.device)
                 labels = labels.to(self.device)
                 
-                outputs = model(sequence, sequence, time_data)
+                x_pred_stub = torch.zeros((sequence.size(0), self.pred_len), device=self.device, dtype=sequence.dtype)
+                outputs = model(sequence, x_pred_stub, time_data)
                 
                 # Вычисляем потери
                 loss = 0
@@ -438,7 +451,7 @@ class AdaptiveLearningAgent:
         
         # Делаем предсказание
         with torch.no_grad():
-            prediction = self.ensemble.predict(sequence, time_data)
+            prediction = self.ensemble.predict(sequence, time_data, pred_len=self.pred_len)
             probabilities = torch.softmax(prediction, dim=-1)
         
         # Анализируем предсказания

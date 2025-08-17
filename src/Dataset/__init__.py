@@ -5,7 +5,7 @@ __all__ = ("Dataset",
            "LoaderTimeLine"
            )
 
-from backend.Dataset.dataset import Dataset, DatasetTimeseries
-from backend.Dataset.models import Coin
-from backend.Dataset.indicators import Indicators
-from backend.Dataset.loader import LoaderTimeLine
+from .dataset import Dataset, DatasetTimeseries
+from .models import Coin
+from .indicators import Indicators
+from .loader import LoaderTimeLine

@@ -12,10 +12,10 @@ from accelerate import Accelerator
 
 from .parsing_schem import parsing_json_schema
 from core import data_helper
-from backend.MMM import (Agent,
-                         AgentManager)
+from MMM import (Agent,
+                 AgentManager)
 
-from backend.Dataset import LoaderTimeLine
+from Dataset import LoaderTimeLine
 from .transform_data import TimeSeriesTransform
 
 import logging

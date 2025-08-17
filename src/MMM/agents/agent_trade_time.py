@@ -158,6 +158,10 @@ class AgentTradeTime(Agent):
         if not isinstance(data, pd.DataFrame):
             raise ValueError("Target must be a pandas DataFrame.")
         
+        # Защита от строковых значений
+        data = data.copy()
+        data["close"] = pd.to_numeric(data["close"], errors='coerce')
+        data = data.dropna(subset=["close"]).reset_index(drop=True)
         prices_close = data["close"].values
 
         targets = []
@@ -222,6 +226,43 @@ class AgentTradeTime(Agent):
             "dropout": self.model_parameters.get("dropout", 0.3),
             'loss': best_loss,
         }, filename)
+
+    @staticmethod
+    def _load_agent_from_checkpoint(filename: str, i: int = 0) -> "AgentTradeTime":
+        checkpoint = torch.load(filename)
+
+        optimizer_state_dict = checkpoint.get('optimizer_state_dict')
+        scheduler_state_dict = checkpoint.get('scheduler_state_dict')
+
+        name = checkpoint.get("name", f"agent_trade_time_5m_{i}")
+        timetravel = checkpoint.get("timetravel", "5m")
+        data_normalize = checkpoint.get("data_normalize", False)
+        indecaters = checkpoint.get('indecaters', {})
+
+        model_parameters = {
+            "datetime_format": checkpoint.get("datetime_format", "%m-%d %H:%M %w"),
+            "seq_len": checkpoint.get("seq_len"),
+            "pred_len": checkpoint.get("pred_len"),
+            "hidden_size": checkpoint.get("hidden_size", 128),
+            "n_heads": checkpoint.get("n_heads", 8),
+            "num_layers": checkpoint.get("num_layers", 2),
+            "emb_month_size": checkpoint.get("emb_month_size", 8),
+            "emb_weekday_size": checkpoint.get("emb_weekday_size", 4),
+            "lstm_hidden": checkpoint.get("lstm_hidden", 256),
+            "dropout": checkpoint.get("dropout", 0.3),
+        }
+
+        agent = AgentTradeTime(
+            name=name,
+            timetravel=timetravel,
+            indecaters=indecaters,
+            data_normalize=data_normalize,
+            model_parameters=model_parameters,
+        )
+        agent.model.load_state_dict(checkpoint['model_state_dict'])
+        agent.optimizer_state_dict = optimizer_state_dict
+        agent.scheduler_state_dict = scheduler_state_dict
+        return agent, checkpoint.get('epoch', 0), checkpoint, checkpoint.get('loss', 0.0)
 
     def save_json(self, epoch, history_loss, best_loss, base_lr, batch_size, weight_decay):
         training_info = {

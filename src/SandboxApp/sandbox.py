@@ -2,12 +2,14 @@ import asyncio
 
 from typing import List, Dict, Generator, Any, Union, Literal
 
-from backend.Dataset import DatasetTimeseries
-from backend.train_models.transform_data import TimeSeriesTransform
+from src.Dataset import DatasetTimeseries
+from src.train_models.transform_data import TimeSeriesTransform
 from core.database import orm_get_coins, orm_get_timeseries_by_coin, orm_get_data_timeseries
-from core.database import db_helper
+from core.database.engine import db_helper, set_db_helper
 
 from .boxs import Box, Exhange
+from MMM.agents.agent_trade_time import AgentTradeTime
+from MMM.mmm_ensemble import aggregate_trade_decision, build_final_order
 
 import logging 
 
@@ -44,6 +46,8 @@ class Sandbox:
     
     async def _load_data_fron_db(self):
         results = {}
+        if not db_helper:
+            await set_db_helper()
         async with db_helper.get_session() as session:
             coins = await orm_get_coins(session)
             for coin in coins:
@@ -59,10 +63,32 @@ class Sandbox:
         return results
 
     async def _load_agents_from_db(self):
-        pass
+        # Заготовка: загрузка активных trade_time агентов по путям чекпойнтов
+        # Потребуется ORM-функция для получения активных агентов с путями. Используем уже существующую orm_get_agents
+        from core.database.orm.agents import orm_get_agents
+        if not db_helper:
+            await set_db_helper()
+        loaded = []
+        async with db_helper.get_session() as session:
+            agents = await orm_get_agents(session, type_agent="AgentTradeTime")
+            for a in agents or []:
+                path = a.get("path_model")
+                if not path:
+                    continue
+                try:
+                    agent, *_ = AgentTradeTime._load_agent_from_checkpoint(path)
+                    agent.set_mode("test")
+                    loaded.append(agent)
+                except Exception:
+                    continue
+        return loaded
 
     def start(self):
-        pass
+        # Простейший проход по данным и формирование решений (демо)
+        if not self.data or not self.agents:
+            raise RuntimeError("Sandbox: нет данных или агентов")
+        # Здесь можно реализовать логику симуляции. Оставляем как заглушку, т.к. нужна стратегия и риск-агент
+        return {"status": "not_implemented", "agents": len(self.agents)}
 
     def add_data(self, item):
         self.data.append(item)

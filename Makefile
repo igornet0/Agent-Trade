@@ -46,21 +46,25 @@ notebook: ## Запустить Jupyter notebook
 	@echo "$(GREEN)📓 Запускаем Jupyter notebook...$(NC)"
 	jupyter notebook train_agents_new.ipynb
 
+gui: ## Запустить GUI (Streamlit)
+	@echo "$(GREEN)🖥️  Запускаем GUI (Streamlit)...$(NC)"
+	PYTHONPATH=$(shell pwd) poetry run streamlit run src/gui/app.py
+
 ensemble: ## Запустить ансамбль агентов
 	@echo "$(GREEN)🔄 Запускаем ансамбль агентов...$(NC)"
 	$(PYTHON) multi_agent_ensemble.py
 
 single-agent: ## Обучить одного агента
 	@echo "$(GREEN)🤖 Обучаем одного агента...$(NC)"
-	$(PYTHON) -c "
-from crypto_trading_agent import train_crypto_trading_agent, test_agent_trading
-agent = train_crypto_trading_agent('BTC')
-if agent:
-    test_results = test_agent_trading(agent, test_period_days=3)
-    print('✅ Агент обучен и протестирован')
-else:
-    print('❌ Ошибка обучения агента')
-"
+	$(PYTHON) - <<-'PY'
+	from crypto_trading_agent import train_crypto_trading_agent, test_agent_trading
+	agent = train_crypto_trading_agent('BTC')
+	if agent:
+	    test_results = test_agent_trading(agent, test_period_days=3)
+	    print('✅ Агент обучен и протестирован')
+	else:
+	    print('❌ Ошибка обучения агента')
+	PY
 
 clean: ## Очистить временные файлы
 	@echo "$(YELLOW)🧹 Очищаем временные файлы...$(NC)"

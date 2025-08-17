@@ -104,7 +104,7 @@ class AgentPredTime(Agent):
             new_x = data[i:i+seq_len]
             new_y = y[i+seq_len: i + seq_len + pred_len]
             time_x = time_features[i:i+seq_len]
-
+            # Преобразуем в тензоры ожидаемых форм в process_batch
             yield new_x, new_y, time_x
     
     def preprocess_data_for_model(self, data: pd.DataFrame) -> Tuple[pd.DataFrame, pd.DataFrame]:
@@ -130,7 +130,12 @@ class AgentPredTime(Agent):
 
         column_output = self.get_column_output()
 
+        # Приведение типов для числовых признаков
         data = data[column_output]
+        for c in data.columns:
+            if c != "datetime":
+                data[c] = pd.to_numeric(data[c], errors='coerce')
+        data = data.dropna()
 
         if self.mod == "train":
             tatget = self.procces_target(self.mod, data, self.target_column)

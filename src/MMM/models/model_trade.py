@@ -89,6 +89,19 @@ class TradingModel(nn.Module):
         all_outputs = []
         
         # Создаем последовательность шагов [0, 1, ..., pred_len-1]
+        # Обеспечим корректность формы x_pred: [B, pred_len]
+        if x_pred.dim() == 1:
+            x_pred = x_pred.unsqueeze(0)
+        if x_pred.dim() == 2 and x_pred.size(0) != batch_size:
+            x_pred = x_pred.expand(batch_size, -1)
+        if x_pred.size(1) != self.pred_len:
+            # pad or trim
+            if x_pred.size(1) < self.pred_len:
+                pad = self.pred_len - x_pred.size(1)
+                x_pred = torch.nn.functional.pad(x_pred, (0, pad))
+            else:
+                x_pred = x_pred[:, : self.pred_len]
+
         steps = torch.arange(self.pred_len, device=x.device).repeat(batch_size, 1)  # [B, pred_len]
         
         context = self.encode_lstm(x, time_data)  # [B, 256]
