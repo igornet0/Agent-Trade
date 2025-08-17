@@ -19,54 +19,65 @@ class BatchGenerator:
     def generate_batches(self):
         buffers = [iter(loader) for loader in self.loaders]
         agent = self.agent
+        seq_len = agent.model_parameters.get("seq_len", 50)
+        pred_len = agent.model_parameters.get("pred_len", 5)
+
+        x_list, y_list, extra1_list, extra2_list = [], [], [], []
+
         while True:
             any_data = False
-            x_list, y_list, extra1_list, extra2_list = [], [], [], []
             for buf in buffers:
                 try:
-                    window_df = next(buf)  # pd.DataFrame окна таймсерии
+                    window_df = next(buf)
                     any_data = True
                 except StopIteration:
                     continue
 
-                # Преобразуем окно в тензоры для конкретного агента
+                # На основе окна генерируем выборки нужной формы через агент
                 try:
-                    processed = agent.preprocess_data_for_model(window_df.copy())
+                    samples_iter = agent.create_time_line_loader(window_df, pred_len, seq_len)
                 except Exception:
                     continue
 
-                # Нормализуем в кортеж (x, y, extra1, extra2)
-                sample_tuple = None
-                if isinstance(processed, (list, tuple)):
-                    if len(processed) == 3:
-                        # (x, y, time)
-                        x_np, y_np, t_np = processed
-                        sample_tuple = (x_np, y_np, t_np, None)
-                    elif len(processed) == 4:
-                        # AgentTradeTime.train -> (x, x_pred, y, time) -> переставим
-                        x_np, x_pred_np, y_np, t_np = processed
-                        sample_tuple = (x_np, y_np, x_pred_np, t_np)
-                    else:
-                        # неизвестный формат
+                for sample in samples_iter:
+                    if not isinstance(sample, (list, tuple)):
                         continue
-                else:
-                    # неожиданный тип
-                    continue
+                    if len(sample) == 3:
+                        # (x, y, time)
+                        s_x, s_y, s_t = sample
+                        s_e1, s_e2 = s_t, None
+                    elif len(sample) == 4:
+                        # (x, y, x_pred, time) в нашей create_time_line_loader порядок (x, y, x_pred, time)
+                        s_x, s_y, s_e1, s_e2 = sample
+                    else:
+                        continue
+                    try:
+                        x_list.append(np.asarray(s_x))
+                        y_list.append(np.asarray(s_y))
+                        if s_e1 is not None:
+                            extra1_list.append(np.asarray(s_e1))
+                        if s_e2 is not None:
+                            extra2_list.append(np.asarray(s_e2))
+                    except Exception:
+                        continue
 
-                x_np, y_np, e1_np, e2_np = sample_tuple
-                try:
-                    x_list.append(np.asarray(x_np))
-                    y_list.append(np.asarray(y_np))
-                    if e1_np is not None:
-                        extra1_list.append(np.asarray(e1_np))
-                    if e2_np is not None:
-                        extra2_list.append(np.asarray(e2_np))
-                except Exception:
-                    continue
+                    if len(x_list) >= self.batch_size:
+                        x = torch.as_tensor(np.stack(x_list[: self.batch_size]), dtype=torch.float32)
+                        y = torch.as_tensor(np.stack(y_list[: self.batch_size]), dtype=torch.float32)
+                        e1 = torch.as_tensor(np.stack(extra1_list[: self.batch_size]), dtype=torch.float32) if len(extra1_list) >= self.batch_size else None
+                        e2 = torch.as_tensor(np.stack(extra2_list[: self.batch_size]), dtype=torch.float32) if len(extra2_list) >= self.batch_size else None
+                        yield (x, y, e1, e2)
+                        # remove used
+                        x_list = x_list[self.batch_size:]
+                        y_list = y_list[self.batch_size:]
+                        extra1_list = extra1_list[self.batch_size:] if e1 is not None else []
+                        extra2_list = extra2_list[self.batch_size:] if e2 is not None else []
 
-            if not any_data or not x_list:
+            if not any_data:
                 break
 
+        # остаток
+        if x_list:
             x = torch.as_tensor(np.stack(x_list), dtype=torch.float32)
             y = torch.as_tensor(np.stack(y_list), dtype=torch.float32)
             e1 = torch.as_tensor(np.stack(extra1_list), dtype=torch.float32) if extra1_list else None
