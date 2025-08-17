@@ -5,6 +5,8 @@ from typing import Optional, Dict, Any
 from backend.Dataset import Indicators
 from pydantic import BaseModel, ConfigDict, EmailStr
 from datetime import datetime
+from datetime import datetime
+from typing import List
 
 class AgentType(str, PyEnum):
 
@@ -142,3 +144,17 @@ class AgentResponse(BaseModel):
 
 
 
+
+class EvaluateRequest(BaseModel):
+    class Config:
+        orm_mode = True
+
+    agent_id: int
+    coins: List[int] = []
+    timeframe: Optional[str] = "5m"
+    start: Optional[datetime] = None
+    end: Optional[datetime] = None
+
+class EvaluateResponse(BaseModel):
+    task_id: str
+    detail: Optional[str] = None

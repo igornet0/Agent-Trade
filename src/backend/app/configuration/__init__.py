@@ -11,7 +11,7 @@ __all__ = ("Routers", "Server", "CoinResponse",
            "AgentResponse", "AgentCreate", "AgentType",
            "AgentTypeResponse", "FeatureTypeResponse",
            "AgentTrade", "AgentStrategy", "AgentStata", "AgentAction",
-           "rabbit")
+           "rabbit", "EvaluateRequest", "EvaluateResponse")
 
 from .routers.routers import Routers
 from .server import Server
@@ -22,7 +22,7 @@ from .schemas import (CoinData, TimeLineCoin, CoinResponseData,
                                                OrderUpdateAmount, AgentResponse, AgentCreate,
                                                AgentTypeResponse, FeatureTypeResponse, AgentTrainResponse,
                                                AgentType, AgentTrade, AgentStrategy, AgentStata, AgentAction,
-                                               TrainData)
+                                               TrainData, EvaluateRequest, EvaluateResponse)
 
 from .auth import (verify_password, get_password_hash, 
                                             create_access_token, get_current_user,

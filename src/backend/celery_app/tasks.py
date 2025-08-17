@@ -129,6 +129,93 @@ def train_model_task(self, agent_id: int):
 
     return asyncio.run(_run())
 
+
+@celery_app.task(bind=True)
+def evaluate_model_task(self, agent_id: int, coins: list[int], timeframe: str = "5m",
+                        start: str | None = None, end: str | None = None):
+    """Evaluate trained agent offline on a selected time range.
+
+    Returns simple metrics dict; progress updates via Celery state.
+    """
+
+    async def _run():
+        async with db_helper.get_session() as session:  # type: AsyncSession
+            agent = await orm_get_agent_by_id(session, agent_id)
+            if not agent:
+                logger.error(f"Agent {agent_id} not found")
+                return {"status": "error", "detail": "agent not found"}
+
+            loader = Loader(agent_type=agent.type, model_type="MMM")
+            agent_manager = loader.load_model(count_agents=1)
+            if agent_manager is None:
+                return {"status": "error", "detail": "agent manager not built"}
+
+            # Load datasets
+            def parse_dt(dt: str | None):
+                if not dt:
+                    return None
+                try:
+                    return datetime.fromisoformat(dt)
+                except Exception:
+                    return None
+
+            dt_start = parse_dt(start)
+            dt_end = parse_dt(end)
+
+            total = max(len(coins), 1)
+            processed = 0
+            metrics = {
+                "coins": [],
+                "samples": 0,
+                "avg_loss": None,
+            }
+
+            for coin_id in coins:
+                ts = await orm_get_timeseries_by_coin(session, coin_id, timeframe=timeframe)
+                if not ts:
+                    continue
+                data_rows = await orm_get_data_timeseries(session, ts.id)
+                # sort and clip by time range
+                rows = sorted(data_rows, key=lambda r: r.datetime)
+                if dt_start:
+                    rows = [r for r in rows if r.datetime >= dt_start]
+                if dt_end:
+                    rows = [r for r in rows if r.datetime <= dt_end]
+                items = [
+                    {
+                        "datetime": r.datetime,
+                        "open": r.open,
+                        "max": r.max,
+                        "min": r.min,
+                        "close": r.close,
+                        "volume": r.volume,
+                    }
+                    for r in rows
+                ]
+                if not items:
+                    continue
+
+                # Simple evaluation using loader utilities
+                try:
+                    result = loader.evaluate_model(dataset=items, agent_manager=agent_manager)
+                    metrics["coins"].append({"coin_id": coin_id, **(result or {})})
+                    if result and "samples" in result:
+                        metrics["samples"] += int(result["samples"])
+                    if result and "avg_loss" in result:
+                        if metrics["avg_loss"] is None:
+                            metrics["avg_loss"] = result["avg_loss"]
+                        else:
+                            metrics["avg_loss"] = (metrics["avg_loss"] + result["avg_loss"]) / 2.0
+                except Exception as e:
+                    logger.exception("Evaluate failed for coin %s", coin_id)
+
+                processed += 1
+                self.update_state(state='PROGRESS', meta={'progress': int(processed/total*100)})
+
+            return {"status": "success", "agent_id": agent_id, "metrics": metrics}
+
+    return asyncio.run(_run())
+
     # db = SessionLocal()
     # try:
     #     # Обновляем статус задачи в БД

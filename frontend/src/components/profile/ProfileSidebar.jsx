@@ -73,6 +73,19 @@ const ProfileSidebar = ({ activeTab, setActiveTab, onLogout }) => {
             </button>
           </li>
           <li>
+            <button 
+              className={`w-full text-left p-3 rounded-lg transition ${activeTab === 'module_tester' ? 'bg-white text-blue-900' : 'hover:bg-blue-800'}`}
+              onClick={() => setActiveTab('module_tester')}
+            >
+              <div className="flex items-center">
+                <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 mr-2" viewBox="0 0 20 20" fill="currentColor">
+                  <path d="M2 5a2 2 0 012-2h3v2H4v10h3v2H4a2 2 0 01-2-2V5zM14 3h2a2 2 0 012 2v10a2 2 0 01-2 2h-2v-2h2V5h-2V3zM8 9h4v2H8V9z" />
+                </svg>
+                <span>Module Tester</span>
+              </div>
+            </button>
+          </li>
+          <li>
             <button
               className={`flex items-center space-x-2 px-4 py-2 rounded-lg transition ${
                 activeTab === 'strategys' ? 'bg-white text-blue-900' : 'hover:bg-blue-800'

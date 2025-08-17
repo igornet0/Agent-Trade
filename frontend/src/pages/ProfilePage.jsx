@@ -1,4 +1,12 @@
-import React from 'react';
+import React, { useState } from 'react';
+import ProfileTabContent from '../components/profile/ProfileTabContent';
+import FinanceTabContent from '../components/profile/FinanceTabContent';
+import AgentsTabContent from '../components/profile/AgentsTabContent';
+import ModelsTabContent from '../components/profile/ModelsTabContent';
+import StrategyTabContent from '../components/profile/StrategyTabContent';
+import StrategyTable from '../components/profile/StrategyTable';
+import CoinsTabContent from '../components/profile/CoinsTabContent';
+import ModuleTester from '../components/profile/ModuleTester';
 
 const ProfileSidebar = ({ activeTab, setActiveTab, onLogout }) => {
   const navItems = [
@@ -82,4 +90,25 @@ const ProfileSidebar = ({ activeTab, setActiveTab, onLogout }) => {
   );
 };
 
-export default ProfileSidebar;
+const ProfilePage = ({ user, onLogout }) => {
+  const [activeTab, setActiveTab] = useState('profile');
+  return (
+    <div className="min-h-screen bg-gray-100">
+      <div className="flex">
+        <ProfileSidebar activeTab={activeTab} setActiveTab={setActiveTab} onLogout={onLogout} />
+        <div className="flex-1 p-6 grid grid-cols-1 lg:grid-cols-4 gap-6">
+          {activeTab === 'profile' && <ProfileTabContent user={user} />}
+          {activeTab === 'finance' && <FinanceTabContent />}
+          {activeTab === 'agents' && <AgentsTabContent />}
+          {activeTab === 'models' && <ModelsTabContent />}
+          {activeTab === 'strategy' && <StrategyTabContent />}
+          {activeTab === 'strategys' && <StrategyTable />}
+          {activeTab === 'coins' && <CoinsTabContent />}
+          {activeTab === 'module_tester' && <ModuleTester />}
+        </div>
+      </div>
+    </div>
+  );
+};
+
+export default ProfilePage;

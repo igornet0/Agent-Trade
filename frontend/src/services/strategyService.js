@@ -84,3 +84,21 @@ export const delete_agent = async (agentId) => {
   if (response.status !== 200) throw new Error('Ошибка удаления агента');
   return response.data;
 }
+
+export const evaluate_agent = async ({ agent_id, coins, timeframe = '5m', start = null, end = null }) => {
+  const payload = { agent_id, coins, timeframe, start, end };
+  const response = await api.post('/api_db_agent/evaluate', payload, {
+    headers: {
+      'accept': 'application/json',
+      'Content-Type': 'application/json'
+    }
+  });
+  if (response.status !== 200) throw new Error('Ошибка запуска оценки модели');
+  return response.data; // { task_id }
+}
+
+export const get_task_status = async (taskId) => {
+  const response = await api.get(`/api_db_agent/task_status/${taskId}`);
+  if (response.status !== 200) throw new Error('Ошибка статуса задачи');
+  return response.data;
+}

@@ -30,6 +30,7 @@ from backend.app.configuration import (Server,
                                        AgentResponse,
                                        AgentCreate,
                                        AgentTrade,
+                                       EvaluateRequest,
                                        UserResponse,
                                        OrderUpdateAmount,
                                        OrderResponse,
@@ -40,6 +41,7 @@ from backend.app.configuration import (Server,
                                        verify_authorization_admin)
 
 from backend.celery_app.tasks import train_model_task
+from backend.celery_app.tasks import evaluate_model_task
 from backend.celery_app.create_app import celery_app
 
 http_bearer = HTTPBearer(auto_error=False)
@@ -246,6 +248,16 @@ async def get_task_status(task_id: str,
         "successful": result.successful() if result.ready() else False,
     }
 
+
+@router.post("/evaluate")
+async def evaluate_agent(payload: EvaluateRequest,
+                         _: User = Depends(verify_authorization_admin)):
+    task = evaluate_model_task.delay(agent_id=payload.agent_id,
+                                     coins=payload.coins,
+                                     timeframe=payload.timeframe or "5m",
+                                     start=payload.start.isoformat() if payload.start else None,
+                                     end=payload.end.isoformat() if payload.end else None)
+    return {"task_id": task.id}
 
 @router.post("/agents/{agent_id}/promote")
 async def promote_agent(agent_id: int,
