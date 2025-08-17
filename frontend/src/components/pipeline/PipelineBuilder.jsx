@@ -167,9 +167,30 @@ export default function PipelineBuilder() {
     setEdges(prev => prev.filter(e => e.source !== id && e.target !== id));
   };
 
+  const ALLOWED_NEXT = useMemo(() => ({
+    DataSource: ['Indicators','News','Pred_time','Metrics'],
+    Indicators: ['Pred_time','Trade_time','Metrics'],
+    News: ['Pred_time','Trade_time','Risk','Metrics'],
+    Pred_time: ['Trade_time','Metrics'],
+    Trade_time: ['Risk','Trade','Metrics'],
+    Risk: ['Trade','Metrics'],
+    Trade: ['Metrics'],
+    Metrics: [],
+  }), []);
+
+  const getNodeType = useCallback((id) => nodes.find(n => n.id === id)?.type, [nodes]);
+  const validateConnection = useCallback((sourceId, targetId) => {
+    const sType = getNodeType(sourceId);
+    const tType = getNodeType(targetId);
+    if (!sType || !tType) return false;
+    const allowed = ALLOWED_NEXT[sType] || [];
+    return allowed.includes(tType);
+  }, [ALLOWED_NEXT, getNodeType]);
+
   const onAddEdge = () => {
     if (!newEdgeSource || !newEdgeTarget) return;
     if (newEdgeSource === newEdgeTarget) return alert('source и target не должны совпадать');
+    if (!validateConnection(newEdgeSource, newEdgeTarget)) return alert('Невалидная связь для выбранных узлов');
     const id = `e_${newEdgeSource}_${newEdgeTarget}_${edges.length+1}`;
     setEdges(prev => [...prev, { id, source: newEdgeSource, target: newEdgeTarget }]);
   };
@@ -177,7 +198,13 @@ export default function PipelineBuilder() {
   const onRemoveEdge = (id) => setEdges(prev => prev.filter(e => e.id !== id));
 
   // ReactFlow handlers
-  const onConnect = useCallback((params) => setEdges((eds) => addEdge({ ...params, id: `e_${params.source}_${params.target}_${eds.length+1}` }, eds)), []);
+  const onConnect = useCallback((params) => {
+    if (!validateConnection(params.source, params.target)) {
+      alert('Невалидная связь для выбранных типов узлов');
+      return;
+    }
+    setEdges((eds) => addEdge({ ...params, id: `e_${params.source}_${params.target}_${eds.length+1}` }, eds));
+  }, [validateConnection]);
   const onNodesChange = useCallback((changes) => {
     setNodes((nds) => nds.map(n => {
       const ch = changes.find(c => c.id === n.id);
