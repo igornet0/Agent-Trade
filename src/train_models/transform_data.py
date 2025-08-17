@@ -18,44 +18,60 @@ class BatchGenerator:
 
     def generate_batches(self):
         buffers = [iter(loader) for loader in self.loaders]
+        agent = self.agent
         while True:
-            # собираем по позициям произвольной длины сэмплы
-            positional_batches: list[list] | None = None
             any_data = False
+            x_list, y_list, extra1_list, extra2_list = [], [], [], []
             for buf in buffers:
                 try:
-                    sample = next(buf)
+                    window_df = next(buf)  # pd.DataFrame окна таймсерии
                     any_data = True
-                    if not isinstance(sample, (list, tuple)):
-                        sample = (sample,)
-                    if positional_batches is None:
-                        positional_batches = [[] for _ in range(len(sample))]
-                    # выравниваем длину
-                    if len(sample) > len(positional_batches):
-                        positional_batches.extend([[] for _ in range(len(sample) - len(positional_batches))])
-                    for idx, val in enumerate(sample):
-                        positional_batches[idx].append(val)
                 except StopIteration:
                     continue
-            if not any_data or not positional_batches:
+
+                # Преобразуем окно в тензоры для конкретного агента
+                try:
+                    processed = agent.preprocess_data_for_model(window_df.copy())
+                except Exception:
+                    continue
+
+                # Нормализуем в кортеж (x, y, extra1, extra2)
+                sample_tuple = None
+                if isinstance(processed, (list, tuple)):
+                    if len(processed) == 3:
+                        # (x, y, time)
+                        x_np, y_np, t_np = processed
+                        sample_tuple = (x_np, y_np, t_np, None)
+                    elif len(processed) == 4:
+                        # AgentTradeTime.train -> (x, x_pred, y, time) -> переставим
+                        x_np, x_pred_np, y_np, t_np = processed
+                        sample_tuple = (x_np, y_np, x_pred_np, t_np)
+                    else:
+                        # неизвестный формат
+                        continue
+                else:
+                    # неожиданный тип
+                    continue
+
+                x_np, y_np, e1_np, e2_np = sample_tuple
+                try:
+                    x_list.append(np.asarray(x_np))
+                    y_list.append(np.asarray(y_np))
+                    if e1_np is not None:
+                        extra1_list.append(np.asarray(e1_np))
+                    if e2_np is not None:
+                        extra2_list.append(np.asarray(e2_np))
+                except Exception:
+                    continue
+
+            if not any_data or not x_list:
                 break
 
-            batched_outputs = []
-            for items in positional_batches:
-                if not items:
-                    batched_outputs.append(None)
-                    continue
-                # попытаться стекнуть как numpy, иначе пропустить
-                try:
-                    tensor = torch.as_tensor(np.stack(items), dtype=torch.float32)
-                except Exception:
-                    try:
-                        tensor = torch.as_tensor(items, dtype=torch.float32)
-                    except Exception:
-                        tensor = None
-                batched_outputs.append(tensor)
-
-            yield tuple(batched_outputs)
+            x = torch.as_tensor(np.stack(x_list), dtype=torch.float32)
+            y = torch.as_tensor(np.stack(y_list), dtype=torch.float32)
+            e1 = torch.as_tensor(np.stack(extra1_list), dtype=torch.float32) if extra1_list else None
+            e2 = torch.as_tensor(np.stack(extra2_list), dtype=torch.float32) if extra2_list else None
+            yield (x, y, e1, e2)
 
 class TimeSeriesTransform(IterableDataset):
     def __init__(self, loaders: list[LoaderTimeLine], agent: Agent, batch_size: int = 32, mixed: bool = True):

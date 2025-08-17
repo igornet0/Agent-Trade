@@ -132,13 +132,16 @@ class Loader:
                 with autocast(device_type=self.device.type, enabled=effective_mp and (is_cuda or is_mps)):
                 # with torch.no_grad():
                     
-                    # Передаём только существующие тензоры в нужном порядке
-                    forward_args = [x]
-                    if len(rest) > 0 and rest[0] is not None:
-                        forward_args.append(rest[0])
-                    if len(rest) > 1 and rest[1] is not None:
-                        forward_args.append(rest[1])
-                    outputs = agent.trade(forward_args)
+                    # Передаём аргументы, ожидаемые конкретным агентом
+                    # AgentPredTime: model(x, time)
+                    # AgentTradeTime: model(x, x_pred, time)
+                    if agent.get_type() == "AgentTradeTime":
+                        x_pred = rest[0] if len(rest) > 0 else None
+                        t = rest[1] if len(rest) > 1 else None
+                        outputs = agent.trade([x, x_pred, t])
+                    else:
+                        t = rest[0] if len(rest) > 0 else None
+                        outputs = agent.trade([x, t])
                 
                     # print(outputs.shape, y.shape)
                     loss = agent.loss_function(outputs, y)
