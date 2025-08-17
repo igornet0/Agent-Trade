@@ -15,6 +15,29 @@ export default function PipelineBuilder() {
     Trade: { mode: 'rules', weights: { pred: 0.5, trade: 0.3, risk: 0.2 } },
     Metrics: { outputs: ['PnL','Sharpe','WinRate'] },
   }), []);
+
+  const PRESET_VARIANTS = useMemo(() => ({
+    News: [
+      { label: 'FinBERT (по умолч.)', config: { model: 'finbert', window: 288, horizon: 12 } },
+      { label: 'BERT', config: { model: 'bert', window: 288, horizon: 12 } },
+    ],
+    Pred_time: [
+      { label: 'LSTM 96→12', config: { model: 'LSTM', seq_len: 96, pred_len: 12 } },
+      { label: 'Transformer 192→24', config: { model: 'Transformer', seq_len: 192, pred_len: 24 } },
+    ],
+    Trade_time: [
+      { label: 'LightGBM', config: { classifier: 'LightGBM', target: 'buy_sell_hold' } },
+      { label: 'CatBoost', config: { classifier: 'CatBoost', target: 'buy_sell_hold' } },
+    ],
+    Risk: [
+      { label: 'XGBoost базовый', config: { model: 'XGBoost', max_leverage: 3, risk_limit_pct: 2 } },
+      { label: 'Эвристика', config: { model: 'heuristic', max_drawdown_pct: 20, per_trade_risk_pct: 1 } },
+    ],
+    Trade: [
+      { label: 'Rules (веса пред/сигн/риск)', config: { mode: 'rules', weights: { pred: 0.5, trade: 0.3, risk: 0.2 } } },
+      { label: 'RL (заглушка)', config: { mode: 'rl', gamma: 0.99, learning_rate: 3e-4 } },
+    ],
+  }), []);
   const [nodes, setNodes] = useState([
     { id: 'data', type: 'DataSource', position: { x: 100, y: 100 }, data: { label: 'DataSource', config: { source: 'OHLCV' } } },
     { id: 'pred', type: 'Pred_time', position: { x: 400, y: 100 }, data: { label: 'Pred_time', config: { seq_len: 96, pred_len: 12 } } },
@@ -294,6 +317,20 @@ export default function PipelineBuilder() {
                     <label className="block text-xs text-gray-600 mb-1">Config (JSON)</label>
                     <textarea value={selectedNodeConfig} onChange={(e)=>setSelectedNodeConfig(e.target.value)} className="w-full h-48 p-2 border rounded font-mono text-xs"/>
                   </div>
+                  {PRESET_VARIANTS[selectedNodeType] && (
+                    <div>
+                      <div className="block text-xs text-gray-600 mb-1">Пресеты</div>
+                      <div className="flex flex-wrap gap-2">
+                        {PRESET_VARIANTS[selectedNodeType].map(p => (
+                          <button key={p.label}
+                                  onClick={() => setSelectedNodeConfig(JSON.stringify(p.config, null, 2))}
+                                  className="px-2 py-1 text-xs border rounded bg-white hover:bg-gray-50">
+                            {p.label}
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+                  )}
                   <div className="flex gap-2">
                     <button onClick={onUpdateSelectedNode} className="px-3 py-2 bg-emerald-600 text-white rounded">Сохранить</button>
                     <button onClick={onDeleteSelectedNode} className="px-3 py-2 bg-red-600 text-white rounded">Удалить</button>
