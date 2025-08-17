@@ -5,8 +5,13 @@ import json
 import logging
 import time
 from datetime import datetime
+import math
 
 from core.database import db_helper
+from core.database.orm.market import (
+    orm_get_timeseries_by_coin as market_get_ts,
+    orm_get_data_timeseries as market_get_data,
+)
 from core.database.orm_query import (
     orm_get_agent_by_id,
     orm_get_train_agent,
@@ -257,44 +262,150 @@ def evaluate_trade_aggregator_task(self, strategy_config: dict | None = None):
 @celery_app.task(bind=True)
 def run_pipeline_backtest_task(self, config_json: dict | None = None, timeframe: str | None = None,
                                start: str | None = None, end: str | None = None):
-    try:
-        cfg = config_json or {}
-        steps = [
-            ('load_data', 'Загрузка данных'),
-            ('features', 'Расчет индикаторов'),
-            ('merge_news', 'Объединение с новостным фоном'),
-            ('pred_time', 'Прогноз цены'),
-            ('trade_time', 'Сигналы buy/sell/hold'),
-            ('risk', 'Оценка риска'),
-            ('trade', 'Агрегация и трейдинг'),
-            ('metrics', 'Подсчет метрик')
-        ]
+    async def _run():
+        try:
+            cfg = config_json or {}
+            nodes = cfg.get('nodes', [])
+            edges = cfg.get('edges', [])
 
-        metrics: dict = {
-            'nodes_count': len(cfg.get('nodes', [])),
-            'edges_count': len(cfg.get('edges', [])),
-            'Sharpe': 0.0,
-            'PnL': 0.0,
-            'WinRate': 0.0,
-        }
+            steps = [
+                ('load_data', 'Загрузка данных'),
+                ('features', 'Расчет индикаторов'),
+                ('merge_news', 'Объединение с новостным фоном'),
+                ('pred_time', 'Прогноз цены'),
+                ('trade_time', 'Сигналы buy/sell/hold'),
+                ('risk', 'Оценка риска'),
+                ('trade', 'Агрегация и трейдинг'),
+                ('metrics', 'Подсчет метрик')
+            ]
 
-        total = len(steps)
-        for i, (code, title) in enumerate(steps, start=1):
-            progress = int(i / total * 100)
-            self.update_state(state='PROGRESS', meta={'progress': progress, 'step': code, 'message': title, 'metrics': metrics})
-            time.sleep(0.2)  # имитация работы
+            metrics: dict = {
+                'nodes_count': len(nodes),
+                'edges_count': len(edges),
+            }
 
-        # финальные метрики-заглушки
-        metrics.update({
-            'Sharpe': 1.23,
-            'PnL': 0.045,
-            'WinRate': 0.61,
-        })
-        self.update_state(state='SUCCESS', meta={'progress': 100, 'message': 'Готово', 'metrics': metrics})
-        return {"status": "success", "metrics": metrics}
-    except Exception as e:
-        logger.exception("run_pipeline_backtest_task failed")
-        return {"status": "error", "detail": str(e)}
+            def step(i: int, code: str, title: str):
+                progress = int(i / len(steps) * 100)
+                self.update_state(state='PROGRESS', meta={'progress': progress, 'step': code, 'message': title, 'metrics': metrics})
+
+            # Resolve timeframe
+            tf = timeframe or cfg.get('timeframe') or '5m'
+
+            # 1) Load data
+            step(1, *steps[0])
+            # pick first DataSource
+            data_source = next((n for n in nodes if n.get('type') == 'DataSource'), None)
+            coin_ids: list[int] = []
+            if data_source and isinstance(data_source.get('config'), dict):
+                coin_ids = data_source['config'].get('coins', []) or []
+            closes: list[float] = []
+            datetimes: list[str] = []
+            async with db_helper.get_session() as session:  # type: AsyncSession
+                if coin_ids:
+                    ts = await market_get_ts(session, coin_ids[0], timeframe=tf)
+                    if ts:
+                        rows = await market_get_data(session, ts.id)
+                        rows_sorted = sorted(rows, key=lambda r: r.datetime)
+                        for r in rows_sorted:
+                            closes.append(float(r.close))
+                            datetimes.append(r.datetime.isoformat())
+            metrics['bars'] = len(closes)
+            if len(closes) < 30:
+                # not enough data, return early
+                self.update_state(state='SUCCESS', meta={'progress': 100, 'message': 'Недостаточно данных', 'metrics': metrics})
+                return {"status": "success", "metrics": metrics}
+
+            # 2) Features: simple SMA
+            step(2, *steps[1])
+            ind_node = next((n for n in nodes if n.get('type') == 'Indicators'), None)
+            sma_period = 20
+            if ind_node and isinstance(ind_node.get('config'), dict):
+                # try to parse SMA(N)
+                inds = ind_node['config'].get('indicators', []) or []
+                for name in inds:
+                    if isinstance(name, str) and name.upper().startswith('SMA(') and name.endswith(')'):
+                        try:
+                            sma_period = int(name[4:-1])
+                        except Exception:
+                            pass
+                        break
+            sma = []
+            s = 0.0
+            for i, c in enumerate(closes):
+                s += c
+                if i >= sma_period:
+                    s -= closes[i - sma_period]
+                if i >= sma_period - 1:
+                    sma.append(s / sma_period)
+                else:
+                    sma.append(None)
+
+            # 3) Merge news (placeholder)
+            step(3, *steps[2])
+
+            # 4) Pred_time: naive direction vs SMA
+            step(4, *steps[3])
+            pred_dir = []  # 1 up, -1 down, 0 none
+            for i, c in enumerate(closes):
+                if sma[i] is None:
+                    pred_dir.append(0)
+                else:
+                    pred_dir.append(1 if c > sma[i] else -1)
+
+            # 5) Trade_time: thresholding -> keep same as pred_dir (simplified)
+            step(5, *steps[4])
+            signals = pred_dir
+
+            # 6) Risk: cap position based on simple volatility
+            step(6, *steps[5])
+            rets = []
+            for i in range(1, len(closes)):
+                if closes[i-1] == 0:
+                    rets.append(0.0)
+                else:
+                    rets.append((closes[i] / closes[i-1]) - 1.0)
+            vol = (sum((r - (sum(rets)/len(rets)))**2 for r in rets)/max(len(rets)-1,1))**0.5 if rets else 0.0
+            risk_cap = 1.0 if vol == 0 else min(1.0, 0.02 / max(vol, 1e-6))
+
+            # 7) Trade: backtest PnL
+            step(7, *steps[6])
+            pnl = 0.0
+            wins = 0
+            trades = 0
+            for i in range(1, len(closes)):
+                sig = signals[i-1]
+                if sig != 0:
+                    ret = rets[i-1] * sig * risk_cap
+                    pnl += ret
+                    trades += 1
+                    if ret > 0:
+                        wins += 1
+            winrate = (wins / trades) if trades else 0.0
+            sharpe = 0.0
+            if rets:
+                mean = sum(rets)/len(rets)
+                std = (sum((r-mean)**2 for r in rets)/max(len(rets)-1,1))**0.5
+                if std > 0:
+                    sharpe = mean/std * math.sqrt(len(rets))
+
+            # 8) Metrics
+            step(8, *steps[7])
+            metrics.update({
+                'bars': len(closes),
+                'sma_period': sma_period,
+                'signals': trades,
+                'PnL': round(pnl, 6),
+                'WinRate': round(winrate, 4),
+                'Sharpe': round(sharpe, 4),
+                'timeframe': tf,
+            })
+            self.update_state(state='SUCCESS', meta={'progress': 100, 'message': 'Готово', 'metrics': metrics})
+            return {"status": "success", "metrics": metrics}
+        except Exception as e:
+            logger.exception("run_pipeline_backtest_task failed")
+            return {"status": "error", "detail": str(e)}
+
+    return asyncio.run(_run())
 
     # db = SessionLocal()
     # try:
