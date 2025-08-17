@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { FaCheckCircle, FaExclamationTriangle } from 'react-icons/fa';
 import { get_train_status } from '../../services/strategyService';
+import { promoteModel } from '../../services/mlService';
 
 const AgentsTable = ({ agents, onAgentClick, onTrainNewAgent, onEvaluateAgent }) => {
   const [isTraining, setIsTraining] = useState(false);
@@ -79,6 +80,7 @@ const AgentsTable = ({ agents, onAgentClick, onTrainNewAgent, onEvaluateAgent })
                 <td className="px-6 py-4 whitespace-nowrap text-sm text-right space-x-2">
                   <button className="px-3 py-1 rounded bg-blue-50 text-blue-700" onClick={()=>handleCheckProgress(agent.id)}>Прогресс</button>
                   <button className="px-3 py-1 rounded bg-indigo-50 text-indigo-700" onClick={()=>onEvaluateAgent && onEvaluateAgent(agent)}>Оценить</button>
+                  <button className="px-3 py-1 rounded bg-green-50 text-green-700" onClick={async()=>{ try{ await promoteModel(agent.id); alert('Сделано прод'); }catch(e){ console.error(e); alert('Ошибка промо'); } }}>Сделать прод</button>
                 </td>
               </tr>
             ))}
