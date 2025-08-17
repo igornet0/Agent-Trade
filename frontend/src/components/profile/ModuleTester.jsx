@@ -569,6 +569,21 @@ function MetricsView({ agentType, task }) {
     );
   }
 
-  return null;
+  // Fallback for unknown agent types
+  return (
+    <div className="mt-3 p-4 bg-gray-50 rounded-lg">
+      <div className="text-sm font-medium text-gray-700 mb-2">Метрики</div>
+      <div className="text-sm text-gray-600">
+        {Object.entries(metrics).map(([key, value]) => (
+          <div key={key} className="flex justify-between py-1">
+            <span className="font-medium">{key}:</span>
+            <span className="font-mono">
+              {typeof value === 'number' ? value.toFixed(4) : String(value)}
+            </span>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
 }
 

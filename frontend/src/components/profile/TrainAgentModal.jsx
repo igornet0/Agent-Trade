@@ -3,6 +3,8 @@ import { get_coins, get_agents } from '../../services/strategyService';
 import { get_agent_types, get_available_features, train_new_agent } from '../../services/strategyService';
 import NewsTrainPanel from './NewsTrainPanel';
 import PredTimeTrainPanel from './PredTimeTrainPanel';
+import TradeTimeTrainPanel from './TradeTimeTrainPanel';
+import RiskTrainPanel from './RiskTrainPanel';
 import TaskProgressWidget from './TaskProgressWidget';
 
 const TrainAgentModal = ({ isOpen, onClose, onAgentTrained }) => {
@@ -55,6 +57,35 @@ const TrainAgentModal = ({ isOpen, onClose, onAgentTrained }) => {
     feature_scaling: 'standard',
     val_split: 0.2,
     test_split: 0.1
+  });
+
+  const [tradeTimeConfig, setTradeTimeConfig] = useState({
+    model_type: 'lightgbm',
+    n_estimators: 100,
+    learning_rate: 0.1,
+    max_depth: 6,
+    num_leaves: 31,
+    depth: 6,
+    threshold: 0.02,
+    technical_indicators: ['sma', 'rsi', 'macd', 'bb'],
+    news_integration: true,
+    feature_scaling: true,
+    val_split: 0.2,
+    test_split: 0.2
+  });
+
+  const [riskConfig, setRiskConfig] = useState({
+    model_type: 'xgboost',
+    n_estimators: 100,
+    learning_rate: 0.1,
+    max_depth: 6,
+    risk_weight: 0.6,
+    volume_weight: 0.4,
+    technical_indicators: ['sma', 'rsi', 'macd', 'bb', 'atr'],
+    news_integration: true,
+    feature_scaling: true,
+    val_split: 0.2,
+    test_split: 0.2
   });
 
   // Task progress state
@@ -117,6 +148,35 @@ const TrainAgentModal = ({ isOpen, onClose, onAgentTrained }) => {
       val_split: 0.2,
       test_split: 0.1
     });
+
+    setTradeTimeConfig({
+      model_type: 'lightgbm',
+      n_estimators: 100,
+      learning_rate: 0.1,
+      max_depth: 6,
+      num_leaves: 31,
+      depth: 6,
+      threshold: 0.02,
+      technical_indicators: ['sma', 'rsi', 'macd', 'bb'],
+      news_integration: true,
+      feature_scaling: true,
+      val_split: 0.2,
+      test_split: 0.2
+    });
+
+    setRiskConfig({
+      model_type: 'xgboost',
+      n_estimators: 100,
+      learning_rate: 0.1,
+      max_depth: 6,
+      risk_weight: 0.6,
+      volume_weight: 0.4,
+      technical_indicators: ['sma', 'rsi', 'macd', 'bb', 'atr'],
+      news_integration: true,
+      feature_scaling: true,
+      val_split: 0.2,
+      test_split: 0.2
+    });
   };
 
   useEffect(() => {
@@ -154,6 +214,8 @@ const TrainAgentModal = ({ isOpen, onClose, onAgentTrained }) => {
 
   const isAgentNews = selectedAgentType === 'AgentNews';
   const isAgentPredTime = selectedAgentType === 'AgentPredTime';
+  const isAgentTradeTime = selectedAgentType === 'AgentTradeTime';
+  const isAgentRisk = selectedAgentType === 'AgentRisk';
 
   const handleAgentTypeChange = (value) => {
     setSelectedAgentType(value);
@@ -214,7 +276,7 @@ const TrainAgentModal = ({ isOpen, onClose, onAgentTrained }) => {
         })),
         coins: selectedCoins,
         // Add ML-specific configuration
-        extra_config: isAgentNews ? newsConfig : isAgentPredTime ? predTimeConfig : {}
+        extra_config: isAgentNews ? newsConfig : isAgentPredTime ? predTimeConfig : isAgentTradeTime ? tradeTimeConfig : isAgentRisk ? riskConfig : {}
       };
       
       const response = await train_new_agent(agentData);
@@ -522,6 +584,20 @@ const TrainAgentModal = ({ isOpen, onClose, onAgentTrained }) => {
             <div className="border-t border-gray-200 pt-4 mb-4">
               <h4 className="text-lg font-semibold text-gray-700 mb-4">Конфигурация Pred_time модели</h4>
               <PredTimeTrainPanel config={predTimeConfig} onChange={setPredTimeConfig} />
+            </div>
+          )}
+
+          {isAgentTradeTime && (
+            <div className="border-t border-gray-200 pt-4 mb-4">
+              <h4 className="text-lg font-semibold text-gray-700 mb-4">Конфигурация Trade_time модели</h4>
+              <TradeTimeTrainPanel config={tradeTimeConfig} onChange={setTradeTimeConfig} />
+            </div>
+          )}
+
+          {isAgentRisk && (
+            <div className="border-t border-gray-200 pt-4 mb-4">
+              <h4 className="text-lg font-semibold text-gray-700 mb-4">Конфигурация Risk модели</h4>
+              <RiskTrainPanel config={riskConfig} onChange={setRiskConfig} />
             </div>
           )}
 

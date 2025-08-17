@@ -44,7 +44,7 @@ from backend.celery_app.tasks import train_model_task
 from backend.celery_app.tasks import evaluate_model_task, train_news_task
 from backend.celery_app.create_app import celery_app
 from backend.app.configuration.schemas.agent import TrainRequest
-from typing import Optional, List
+from typing import Optional, List, Dict
 
 http_bearer = HTTPBearer(auto_error=False)
 
@@ -745,4 +745,242 @@ async def make_pred_time_prediction(
         logger.exception("Failed to make Pred_time prediction")
         if isinstance(e, HTTPException):
             raise e
+        raise HTTPException(status_code=500, detail=str(e))
+
+# Trade_time endpoints
+@router.post("/trade_time/train")
+async def train_trade_time(
+    coin_id: int,
+    start_date: str,
+    end_date: str,
+    extra_config: Optional[Dict] = None,
+    current_user: User = Depends(verify_authorization_admin)
+):
+    """Обучение Trade_time модели"""
+    try:
+        from core.services.trade_time_service import TradeTimeService
+        
+        service = TradeTimeService()
+        result = service.train_model(str(coin_id), start_date, end_date, extra_config)
+        
+        return result
+        
+    except Exception as e:
+        logger.error(f"Error in trade_time train: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+@router.post("/trade_time/evaluate")
+async def evaluate_trade_time(
+    coin_id: int,
+    start_date: str,
+    end_date: str,
+    model_path: str,
+    extra_config: Optional[Dict] = None,
+    current_user: User = Depends(verify_authorization_admin)
+):
+    """Оценка Trade_time модели"""
+    try:
+        from core.services.trade_time_service import TradeTimeService
+        
+        service = TradeTimeService()
+        result = service.evaluate_model(str(coin_id), start_date, end_date, model_path, extra_config)
+        
+        return result
+        
+    except Exception as e:
+        logger.error(f"Error in trade_time evaluate: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+@router.get("/trade_time/models/{agent_id}")
+async def get_trade_time_models(
+    agent_id: int,
+    current_user: User = Depends(verify_authorization_admin)
+):
+    """Получение списка моделей Trade_time для агента"""
+    try:
+        import os
+        from pathlib import Path
+        
+        models_dir = Path("models/models_pth/AgentTradeTime")
+        if not models_dir.exists():
+            return {"status": "success", "agent_id": agent_id, "models": [], "count": 0}
+        
+        agent_models = []
+        for model_dir in models_dir.iterdir():
+            if model_dir.is_dir() and str(agent_id) in model_dir.name:
+                config_file = model_dir / "config.json"
+                metadata_file = model_dir / "metadata.json"
+                
+                if config_file.exists() and metadata_file.exists():
+                    try:
+                        with open(config_file, 'r') as f:
+                            config = json.load(f)
+                        
+                        with open(metadata_file, 'r') as f:
+                            metadata = json.load(f)
+                        
+                        agent_models.append({
+                            'model_path': str(model_dir),
+                            'model_name': model_dir.name,
+                            'config': config,
+                            'metadata': metadata,
+                            'created_at': metadata.get('created_at'),
+                            'model_type': metadata.get('model_type')
+                        })
+                    except Exception as e:
+                        logger.warning(f"Failed to read model info from {model_dir}: {e}")
+                        continue
+        
+        # Sort by creation date (newest first)
+        agent_models.sort(key=lambda x: x.get('created_at', ''), reverse=True)
+        
+        return {
+            "status": "success",
+            "agent_id": agent_id,
+            "models": agent_models,
+            "count": len(agent_models)
+        }
+        
+    except Exception as e:
+        logger.exception(f"Failed to get Trade_time models for agent {agent_id}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+@router.post("/trade_time/predict")
+async def predict_trade_time(
+    coin_id: int,
+    start_date: str,
+    end_date: str,
+    model_path: str,
+    current_user: User = Depends(verify_authorization_admin)
+):
+    """Предсказание торговых сигналов с помощью Trade_time модели"""
+    try:
+        from core.services.trade_time_service import TradeTimeService
+        
+        service = TradeTimeService()
+        result = service.predict(model_path, str(coin_id), start_date, end_date)
+        
+        return result
+        
+    except Exception as e:
+        logger.error(f"Error in trade_time predict: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+# Risk endpoints
+@router.post("/risk/train")
+async def train_risk(
+    coin_id: int,
+    start_date: str,
+    end_date: str,
+    extra_config: Optional[Dict] = None,
+    current_user: User = Depends(verify_authorization_admin)
+):
+    """Обучение Risk модели"""
+    try:
+        from core.services.risk_service import RiskService
+        
+        service = RiskService()
+        result = service.train_model(str(coin_id), start_date, end_date, extra_config)
+        
+        return result
+        
+    except Exception as e:
+        logger.error(f"Error in risk train: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+@router.post("/risk/evaluate")
+async def evaluate_risk(
+    coin_id: int,
+    start_date: str,
+    end_date: str,
+    model_path: str,
+    extra_config: Optional[Dict] = None,
+    current_user: User = Depends(verify_authorization_admin)
+):
+    """Оценка Risk модели"""
+    try:
+        from core.services.risk_service import RiskService
+        
+        service = RiskService()
+        result = service.evaluate_model(str(coin_id), start_date, end_date, model_path, extra_config)
+        
+        return result
+        
+    except Exception as e:
+        logger.error(f"Error in risk evaluate: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+@router.get("/risk/models/{agent_id}")
+async def get_risk_models(
+    agent_id: int,
+    current_user: User = Depends(verify_authorization_admin)
+):
+    """Получение списка моделей Risk для агента"""
+    try:
+        import os
+        from pathlib import Path
+        
+        models_dir = Path("models/models_pth/AgentRisk")
+        if not models_dir.exists():
+            return {"status": "success", "agent_id": agent_id, "models": [], "count": 0}
+        
+        agent_models = []
+        for model_dir in models_dir.iterdir():
+            if model_dir.is_dir() and str(agent_id) in model_dir.name:
+                config_file = model_dir / "config.json"
+                metadata_file = model_dir / "metadata.json"
+                
+                if config_file.exists() and metadata_file.exists():
+                    try:
+                        with open(config_file, 'r') as f:
+                            config = json.load(f)
+                        
+                        with open(metadata_file, 'r') as f:
+                            metadata = json.load(f)
+                        
+                        agent_models.append({
+                            'model_path': str(model_dir),
+                            'model_name': model_dir.name,
+                            'config': config,
+                            'metadata': metadata,
+                            'created_at': metadata.get('created_at'),
+                            'model_type': metadata.get('model_type')
+                        })
+                    except Exception as e:
+                        logger.warning(f"Failed to read model info from {model_dir}: {e}")
+                        continue
+        
+        # Sort by creation date (newest first)
+        agent_models.sort(key=lambda x: x.get('created_at', ''), reverse=True)
+        
+        return {
+            "status": "success",
+            "agent_id": agent_id,
+            "models": agent_models,
+            "count": len(agent_models)
+        }
+        
+    except Exception as e:
+        logger.exception(f"Failed to get Risk models for agent {agent_id}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+@router.post("/risk/predict")
+async def predict_risk(
+    coin_id: int,
+    start_date: str,
+    end_date: str,
+    model_path: str,
+    current_user: User = Depends(verify_authorization_admin)
+):
+    """Предсказание рисков и объема с помощью Risk модели"""
+    try:
+        from core.services.risk_service import RiskService
+        
+        service = RiskService()
+        result = service.predict(model_path, str(coin_id), start_date, end_date)
+        
+        return result
+        
+    except Exception as e:
+        logger.error(f"Error in risk predict: {e}")
         raise HTTPException(status_code=500, detail=str(e))

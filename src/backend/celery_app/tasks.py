@@ -11,6 +11,7 @@ from uuid import uuid4
 from sqlalchemy import select
 import pandas as pd
 import numpy as np
+from typing import Optional, Dict
 
 from core.database import db_helper
 from core.database.orm.market import (
@@ -36,7 +37,7 @@ from core.utils.metrics import (
 )
 from core.database.models.main_models import NewsHistoryCoin, News
 from core.database.models.process_models import Backtest as BacktestModel
-from core.database.orm_query import (
+from core.database.orm import (
     orm_get_agent_by_id,
     orm_get_train_agent,
     orm_get_timeseries_by_coin,
@@ -966,7 +967,7 @@ def run_pipeline_backtest_task(self, config_json: dict, pipeline_id: int = None)
                         returns.append(ret)
                 
                 if returns:
-                    vol = math.sqrt(sum((r - sum(returns)/len(returns))**2 / max(len(returns)-1, 1))
+                    vol = math.sqrt(sum((r - sum(returns)/len(returns))**2 for r in returns) / max(len(returns)-1, 1))
                 else:
                     vol = 0.0
                 
@@ -991,8 +992,8 @@ def run_pipeline_backtest_task(self, config_json: dict, pipeline_id: int = None)
             # Portfolio tracking
             portfolio_value = initial_capital
             portfolio_history = [portfolio_value]
-            per_asset_pnl: list[float] = [0.0] * len(coin_ids)
-            per_asset_trades: list[list[dict]] = [[] for _ in coin_ids]
+            per_asset_pnl = [0.0] * len(coin_ids)
+            per_asset_trades = [[] for _ in coin_ids]
             
             # Track positions and execute trades
             for i in range(1, min_len - 1):  # Skip first and last bar
@@ -1375,3 +1376,63 @@ def evaluate_pred_time_task(self, config: dict):
     except Exception as e:
         logger.exception("evaluate_pred_time_task failed")
         return {"status": "error", "detail": str(e)}
+
+@app.task(bind=True)
+def train_trade_time_task(self, coin_id: str, start_date: str, end_date: str, extra_config: Optional[Dict] = None):
+    """Задача для обучения Trade_time модели"""
+    try:
+        from core.services.trade_time_service import TradeTimeService
+        
+        service = TradeTimeService()
+        result = service.train_model(coin_id, start_date, end_date, extra_config)
+        
+        return result
+        
+    except Exception as e:
+        logger.error(f"Error in train_trade_time_task: {e}")
+        raise self.retry(countdown=60, max_retries=3)
+
+@app.task(bind=True)
+def evaluate_trade_time_task(self, coin_id: str, start_date: str, end_date: str, extra_config: Optional[Dict] = None):
+    """Задача для оценки Trade_time модели"""
+    try:
+        from core.services.trade_time_service import TradeTimeService
+        
+        service = TradeTimeService()
+        result = service.evaluate_model(coin_id, start_date, end_date, extra_config)
+        
+        return result
+        
+    except Exception as e:
+        logger.error(f"Error in evaluate_trade_time_task: {e}")
+        raise self.retry(countdown=60, max_retries=3)
+
+@app.task(bind=True)
+def train_risk_task(self, coin_id: str, start_date: str, end_date: str, extra_config: Optional[Dict] = None):
+    """Задача для обучения Risk модели"""
+    try:
+        from core.services.risk_service import RiskService
+        
+        service = RiskService()
+        result = service.train_model(coin_id, start_date, end_date, extra_config)
+        
+        return result
+        
+    except Exception as e:
+        logger.error(f"Error in train_risk_task: {e}")
+        raise self.retry(countdown=60, max_retries=3)
+
+@app.task(bind=True)
+def evaluate_risk_task(self, coin_id: str, start_date: str, end_date: str, extra_config: Optional[Dict] = None):
+    """Задача для оценки Risk модели"""
+    try:
+        from core.services.risk_service import RiskService
+        
+        service = RiskService()
+        result = service.evaluate_model(coin_id, start_date, end_date, extra_config)
+        
+        return result
+        
+    except Exception as e:
+        logger.error(f"Error in evaluate_risk_task: {e}")
+        raise self.retry(countdown=60, max_retries=3)

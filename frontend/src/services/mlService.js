@@ -70,6 +70,28 @@ export default {
   recalcNewsBackground,
   getNewsBackground,
   getNewsCoins,
+  
+  // Trade_time specific methods
+  tradeTime: {
+    train: (coinId, startDate, endDate, extraConfig) => 
+      api.post(`/api_db_agent/trade_time/train`, { coin_id: coinId, start_date: startDate, end_date: endDate, extra_config: extraConfig }),
+    evaluate: (coinId, startDate, endDate, modelPath, extraConfig) => 
+      api.post(`/api_db_agent/trade_time/evaluate`, { coin_id: coinId, start_date: startDate, end_date: endDate, model_path: modelPath, extra_config: extraConfig }),
+    getModels: (agentId) => api.get(`/api_db_agent/trade_time/models/${agentId}`),
+    predict: (coinId, startDate, endDate, modelPath) => 
+      api.post(`/api_db_agent/trade_time/predict`, { coin_id: coinId, start_date: startDate, end_date: endDate, model_path: modelPath })
+  },
+
+  // Risk specific methods
+  risk: {
+    train: (coinId, startDate, endDate, extraConfig) => 
+      api.post(`/api_db_agent/risk/train`, { coin_id: coinId, start_date: startDate, end_date: endDate, extra_config: extraConfig }),
+    evaluate: (coinId, startDate, endDate, modelPath, extraConfig) => 
+      api.post(`/api_db_agent/risk/evaluate`, { coin_id: coinId, start_date: startDate, end_date: endDate, model_path: modelPath, extra_config: extraConfig }),
+    getModels: (agentId) => api.get(`/api_db_agent/risk/models/${agentId}`),
+    predict: (coinId, startDate, endDate, modelPath) => 
+      api.post(`/api_db_agent/risk/predict`, { coin_id: coinId, start_date: startDate, end_date: endDate, model_path: modelPath })
+  }
 };
 
 // Note: duplicate legacy exports removed
