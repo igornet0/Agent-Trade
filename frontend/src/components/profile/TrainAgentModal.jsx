@@ -3,6 +3,7 @@ import { get_coins, get_agents } from '../../services/strategyService';
 import { get_agent_types, get_available_features, train_new_agent } from '../../services/strategyService';
 import NewsTrainPanel from './NewsTrainPanel';
 import PredTimeTrainPanel from './PredTimeTrainPanel';
+import TaskProgressWidget from './TaskProgressWidget';
 
 const TrainAgentModal = ({ isOpen, onClose, onAgentTrained }) => {
   const [newAgentName, setNewAgentName] = useState('');
@@ -55,6 +56,9 @@ const TrainAgentModal = ({ isOpen, onClose, onAgentTrained }) => {
     val_split: 0.2,
     test_split: 0.1
   });
+
+  // Task progress state
+  const [currentTaskId, setCurrentTaskId] = useState(null);
 
   const Timeframe = [
     {"id":1, "value": '5m'},
@@ -190,6 +194,7 @@ const TrainAgentModal = ({ isOpen, onClose, onAgentTrained }) => {
     try {
       setIsTraining(true);
       setTrainingError(null);
+      setCurrentTaskId(null);
 
       const agentData = {
         name: newAgentName,
@@ -212,16 +217,48 @@ const TrainAgentModal = ({ isOpen, onClose, onAgentTrained }) => {
         extra_config: isAgentNews ? newsConfig : isAgentPredTime ? predTimeConfig : {}
       };
       
-      await train_new_agent(agentData);
-      const data = await get_agents();
-      onAgentTrained(data);
-      resetForm();
+      const response = await train_new_agent(agentData);
+      
+      // Check if response contains task_id
+      if (response.task_id) {
+        setCurrentTaskId(response.task_id);
+        // Don't close modal yet, show progress
+      } else {
+        // Fallback to old behavior
+        const data = await get_agents();
+        onAgentTrained(data);
+        resetForm();
+        onClose();
+      }
     } catch (err) {
       console.error('Ошибка при обучении агента', err);
-      setTrainingError(err.response.data.detail || 'Ошибка при обучении агента');
+      setTrainingError(err.response?.data?.detail || 'Ошибка при обучении агента');
     } finally {
       setIsTraining(false);
     }
+  };
+
+  const handleTaskComplete = async (taskData) => {
+    try {
+      // Refresh agents list
+      const data = await get_agents();
+      onAgentTrained(data);
+      
+      // Show success message
+      alert('Агент успешно обучен!');
+      
+      // Reset form and close modal
+      resetForm();
+      setCurrentTaskId(null);
+      onClose();
+    } catch (err) {
+      console.error('Ошибка при обновлении списка агентов:', err);
+    }
+  };
+
+  const handleTaskError = (taskData) => {
+    setTrainingError(taskData.error || 'Ошибка при обучении агента');
+    setCurrentTaskId(null);
   };
 
   if (!isOpen) return null;
@@ -485,6 +522,19 @@ const TrainAgentModal = ({ isOpen, onClose, onAgentTrained }) => {
             <div className="border-t border-gray-200 pt-4 mb-4">
               <h4 className="text-lg font-semibold text-gray-700 mb-4">Конфигурация Pred_time модели</h4>
               <PredTimeTrainPanel config={predTimeConfig} onChange={setPredTimeConfig} />
+            </div>
+          )}
+
+          {/* Task Progress Widget */}
+          {currentTaskId && (
+            <div className="border-t border-gray-200 pt-4 mb-4">
+              <h4 className="text-lg font-semibold text-gray-700 mb-4">Прогресс обучения</h4>
+              <TaskProgressWidget
+                taskId={currentTaskId}
+                onComplete={handleTaskComplete}
+                onError={handleTaskError}
+                autoStart={true}
+              />
             </div>
           )}
 
