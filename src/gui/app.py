@@ -361,12 +361,15 @@ with tab_models:
 with tab_sandbox:
     st.subheader("Песочница (бэктест)")
     st.caption("Минимальный запуск: загрузка агентов из БД и данных из файлов/БД")
+    sb_coin = st.text_input("Монета (по умолчанию первая из данных)", value="")
+    sb_tf = st.text_input("Таймфрейм (по умолчанию первый)", value="")
+    sb_steps = st.slider("Шагов", 10, 500, 100, 10)
     run_sb = st.button("🏁 Запустить (демо)")
     if run_sb:
         try:
             from SandboxApp.sandbox import Sandbox
             sb = Sandbox(db_use=True)
-            res = sb.start()
+            res = sb.start(coin=sb_coin or None, timeframe=sb_tf or None, max_steps=sb_steps)
             st.write(res)
         except Exception as e:
             st.warning(f"Песочница пока не готова: {e}")
