@@ -1,7 +1,7 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import ReactFlow, { Background, Controls, addEdge, MiniMap, ReactFlowProvider, useReactFlow } from 'reactflow';
 import 'reactflow/dist/style.css';
-import { savePipeline, runPipeline, loadPipeline, stopPipelineTask, listBacktests, getBacktest } from '../../services/pipelineService';
+import { savePipeline, runPipeline, loadPipeline, revokePipeline, getBacktests, getBacktest } from '../../services/pipelineService';
 import { getTaskStatus } from '../../services/mlService';
 
 export default function PipelineBuilder() {
@@ -57,7 +57,7 @@ export default function PipelineBuilder() {
   const [backtests, setBacktests] = useState([]);
   const [showBacktests, setShowBacktests] = useState(false);
   const refreshBacktests = useCallback(async ()=>{
-    try { const data = await listBacktests(); setBacktests(data || []); } catch(e){ console.error(e);} 
+    try { const data = await getBacktests(); setBacktests(data || []); } catch(e){ console.error(e);} 
   }, []);
   useEffect(() => { refreshBacktests(); }, [refreshBacktests]);
 
@@ -251,7 +251,7 @@ export default function PipelineBuilder() {
           <div className="space-x-2">
             <button onClick={onSave} className="px-4 py-2 rounded-md font-medium bg-gray-100 hover:bg-gray-200">Сохранить</button>
             <button onClick={onRun} className="px-4 py-2 rounded-md font-medium bg-blue-600 text-white hover:bg-blue-700">Запустить</button>
-            {taskId && <button onClick={async()=>{ try { await stopPipelineTask(taskId); } catch(e){ console.error(e);} }} className="px-4 py-2 rounded-md font-medium bg-red-600 text-white hover:bg-red-700">Остановить</button>}
+            {taskId && <button onClick={async()=>{ try { await revokePipeline(taskId); } catch(e){ console.error(e);} }} className="px-4 py-2 rounded-md font-medium bg-red-600 text-white hover:bg-red-700">Остановить</button>}
             <button onClick={exportJson} className="px-4 py-2 rounded-md font-medium bg-gray-100 hover:bg-gray-200">Экспорт</button>
             <label className="px-4 py-2 rounded-md font-medium bg-gray-100 hover:bg-gray-200 cursor-pointer">
               Импорт
