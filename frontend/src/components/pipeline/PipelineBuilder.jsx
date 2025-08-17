@@ -1,7 +1,7 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import ReactFlow, { Background, Controls, addEdge, MiniMap } from 'reactflow';
 import 'reactflow/dist/style.css';
-import { savePipeline, runPipeline } from '../../services/pipelineService';
+import { savePipeline, runPipeline, loadPipeline } from '../../services/pipelineService';
 import { getTaskStatus } from '../../services/mlService';
 
 export default function PipelineBuilder() {
@@ -15,6 +15,8 @@ export default function PipelineBuilder() {
   const [end, setEnd] = useState('');
   const [taskId, setTaskId] = useState(null);
   const [task, setTask] = useState(null);
+  const [savedPipelineId, setSavedPipelineId] = useState('');
+  const [loadPipelineId, setLoadPipelineId] = useState('');
 
   // Simple palette / editor state
   const NODE_TYPES = useMemo(() => ['DataSource','Indicators','News','Pred_time','Trade_time','Risk','Trade','Metrics'], []);
@@ -54,10 +56,30 @@ export default function PipelineBuilder() {
   }), [nodes, edges, timeframe, start, end]);
 
   const onSave = async () => {
-    try { await savePipeline(pipelineConfig); alert('Пайплайн сохранён'); } catch (e) { console.error(e); alert('Ошибка сохранения'); }
+    try {
+      const res = await savePipeline(pipelineConfig);
+      const pid = res.pipeline_id || '';
+      setSavedPipelineId(pid);
+      alert(`Пайплайн сохранён${pid ? ` (id: ${pid})` : ''}`);
+    } catch (e) { console.error(e); alert('Ошибка сохранения'); }
   };
   const onRun = async () => {
     try { const res = await runPipeline(pipelineConfig); setTaskId(res.task_id); } catch (e) { console.error(e); alert('Ошибка запуска'); }
+  };
+
+  const onLoad = async () => {
+    if (!loadPipelineId) return alert('Укажите pipeline id');
+    try {
+      const cfg = await loadPipeline(loadPipelineId);
+      const rfNodes = (cfg.nodes || []).map((n, idx) => ({ id: n.id, type: n.type, position: { x: 120 + (idx%4)*180, y: 80 + Math.floor(idx/4)*120 }, data: { label: n.type, config: n.config || {} } }));
+      const rfEdges = (cfg.edges || []).map((e, i) => ({ id: e.id || `e_${e.source}_${e.target}_${i+1}`, source: e.source, target: e.target }));
+      setNodes(rfNodes);
+      setEdges(rfEdges);
+      setTimeframe(cfg.timeframe || '5m');
+      setStart(cfg.start || '');
+      setEnd(cfg.end || '');
+      alert('Пайплайн загружен');
+    } catch (e) { console.error(e); alert('Ошибка загрузки пайплайна'); }
   };
 
   const onAddNode = () => {
@@ -136,6 +158,16 @@ export default function PipelineBuilder() {
             <div className="flex space-x-2">
               <input type="datetime-local" value={start} onChange={(e)=>setStart(e.target.value)} className="w-1/2 p-3 border border-gray-300 rounded-lg" />
               <input type="datetime-local" value={end} onChange={(e)=>setEnd(e.target.value)} className="w-1/2 p-3 border border-gray-300 rounded-lg" />
+            </div>
+          </div>
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-2">Сохранённый Pipeline ID</label>
+            <div className="flex space-x-2">
+              <input value={savedPipelineId} onChange={(e)=>setSavedPipelineId(e.target.value)} className="w-2/3 p-3 border border-gray-300 rounded-lg" placeholder="id после сохранения" />
+              <input value={loadPipelineId} onChange={(e)=>setLoadPipelineId(e.target.value)} className="w-1/3 p-3 border border-gray-300 rounded-lg" placeholder="id для загрузки" />
+            </div>
+            <div className="mt-2">
+              <button onClick={onLoad} className="px-3 py-2 rounded bg-indigo-600 text-white">Загрузить</button>
             </div>
           </div>
         </div>

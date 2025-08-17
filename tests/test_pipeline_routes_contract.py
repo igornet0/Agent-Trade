@@ -1,0 +1,35 @@
+import pytest
+from httpx import AsyncClient
+
+passlib = pytest.importorskip("passlib", reason="passlib not installed; skipping pipeline routes contract test")
+
+
+@pytest.mark.anyio
+async def test_pipeline_save_and_get_contract():
+    from backend.app import create_app
+    app = create_app(create_custom_static_urls=False)
+
+    # register + login admin
+    async with AsyncClient(app=app, base_url="http://test") as ac:
+        # register
+        payload = {"login": "admin1", "email": "admin1@example.com", "password": "secret"}
+        r = await ac.post("/auth/register/", json=payload)
+        assert r.status_code == 200
+        token = r.json()["access_token"]
+
+        headers = {"Authorization": f"Bearer {token}"}
+
+        # save pipeline
+        cfg = {"nodes": [{"id": "n1", "type": "DataSource", "config": {}}], "edges": []}
+        r = await ac.post("/pipeline/save", json=cfg, headers=headers)
+        assert r.status_code == 200
+        pipeline_id = r.json().get("pipeline_id")
+        assert pipeline_id
+
+        # get pipeline
+        r = await ac.get(f"/pipeline/{pipeline_id}", headers=headers)
+        assert r.status_code == 200
+        data = r.json()
+        assert isinstance(data.get("nodes"), list)
+
+

@@ -16,4 +16,10 @@ export const runPipeline = async (config) => {
   return response.data; // { task_id }
 };
 
+export const loadPipeline = async (pipelineId) => {
+  const response = await api.get(`/pipeline/${pipelineId}`);
+  if (response.status !== 200) throw new Error('Пайплайн не найден');
+  return response.data;
+};
+
 
