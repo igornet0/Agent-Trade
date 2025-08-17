@@ -1,4 +1,7 @@
-import pytest
+import sys
+import os
+sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', 'src'))
+
 from core.utils.metrics import (
     mean_absolute_error, root_mean_squared_error, mean_absolute_percentage_error,
     direction_hit_rate, confusion_matrix, precision_recall_f1,
@@ -226,3 +229,6 @@ class TestEdgeCases:
         assert sortino_ratio([0.0, 0.0, 0.0]) == 0.0
 
 
+if __name__ == "__main__":
+    import pytest
+    pytest.main([__file__, "-v"])
