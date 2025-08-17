@@ -29,11 +29,18 @@ const ProfileSidebar = ({ activeTab, setActiveTab, onLogout }) => {
         <circle cx="12" cy="7" r="4" strokeLinecap="round" strokeLinejoin="round"></circle>
       </svg>
     ) },
-    { key: 'models', label: 'Модели', icon: (
+    { key: 'models', label: 'Модели (ML Studio)', icon: (
       <svg className="w-5 h-5 mb-1" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
         <rect width="14" height="14" x="5" y="5" rx="2" ry="2"></rect>
         <path strokeLinecap="round" strokeLinejoin="round" d="M5 10h14"></path>
         <path strokeLinecap="round" strokeLinejoin="round" d="M10 5v14"></path>
+      </svg>
+    ) },
+    { key: 'pipeline', label: 'Пайплайн', icon: (
+      <svg className="w-5 h-5 mb-1" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+        <path strokeLinecap="round" strokeLinejoin="round" d="M3 7v4a1 1 0 001 1h3v3a1 1 0 001 1h4"></path>
+        <path strokeLinecap="round" strokeLinejoin="round" d="M21 3l-6 6"></path>
+        <path strokeLinecap="round" strokeLinejoin="round" d="M14 3h7v7"></path>
       </svg>
     ) },
     { key: 'strategy', label: 'Стратегия', icon: (
@@ -54,6 +61,11 @@ const ProfileSidebar = ({ activeTab, setActiveTab, onLogout }) => {
       <svg className="w-5 h-5 mb-1" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
         <circle cx="12" cy="12" r="10"></circle>
         <path strokeLinecap="round" strokeLinejoin="round" d="M12 6v6l4 2"></path>
+      </svg>
+    ) },
+    { key: 'module_tester', label: 'Тестирование', icon: (
+      <svg className="w-5 h-5 mb-1" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+        <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7"></path>
       </svg>
     ) },
   ];
@@ -101,6 +113,7 @@ const ProfilePage = ({ user, onLogout }) => {
           {activeTab === 'finance' && <FinanceTabContent />}
           {activeTab === 'agents' && <AgentsTabContent />}
           {activeTab === 'models' && <ModelsTabContent />}
+          {activeTab === 'pipeline' && <StrategyTabContent />}
           {activeTab === 'strategy' && <StrategyTabContent />}
           {activeTab === 'strategys' && <StrategyTable />}
           {activeTab === 'coins' && <CoinsTabContent />}

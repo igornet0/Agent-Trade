@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { FaInfoCircle, FaChartLine, FaExclamationTriangle } from 'react-icons/fa';
+import { listModels, trainModel, evaluateModel, getTaskStatus, promoteModel } from '../../services/mlService';
 
 const ModelsTabContent = () => {
   const [models, setModels] = useState([
@@ -37,8 +38,6 @@ const ModelsTabContent = () => {
 
   const handleTrainModel = () => {
     setIsTraining(true);
-    
-    // Симуляция процесса обучения
     setTimeout(() => {
       const newModel = {
         id: models.length + 1,
@@ -49,7 +48,6 @@ const ModelsTabContent = () => {
         lastTrained: new Date().toISOString().split('T')[0],
         description: "Newly trained machine learning model for financial predictions."
       };
-      
       setModels([...models, newModel]);
       setIsTraining(false);
     }, 2000);
@@ -150,7 +148,6 @@ const ModelsTabContent = () => {
         </div>
       </div>
 
-      {/* Модальное окно с деталями модели */}
       {selectedModel && (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
           <div className="bg-white rounded-lg shadow-xl w-full max-w-2xl max-h-[90vh] overflow-y-auto">
@@ -177,7 +174,6 @@ const ModelsTabContent = () => {
                       <span className="ml-2 capitalize font-medium">{selectedModel.status}</span>
                     </div>
                   </div>
-                  
                   <div className="bg-gray-50 p-4 rounded-lg">
                     <p className="text-sm text-gray-500">Accuracy</p>
                     <p className="mt-1 font-medium">
@@ -186,45 +182,22 @@ const ModelsTabContent = () => {
                         : 'N/A'}
                     </p>
                   </div>
-                  
                   <div className="bg-gray-50 p-4 rounded-lg">
                     <p className="text-sm text-gray-500">Last Trained</p>
                     <p className="mt-1 font-medium">{selectedModel.lastTrained}</p>
                   </div>
                 </div>
-                
-                <div className="bg-gray-50 p-4 rounded-lg">
-                  <p className="text-sm text-gray-500">Description</p>
-                  <p className="mt-1">{selectedModel.description}</p>
-                </div>
-                
-                <div className="bg-gray-50 p-4 rounded-lg">
-                  <p className="text-sm text-gray-500">Model Parameters</p>
-                  <div className="mt-2 grid grid-cols-2 gap-2">
-                    <div>
-                      <span className="text-xs text-gray-500">Algorithm:</span>
-                      <p className="font-medium">XGBoost</p>
-                    </div>
-                    <div>
-                      <span className="text-xs text-gray-500">Features:</span>
-                      <p className="font-medium">42 input features</p>
-                    </div>
-                    <div>
-                      <span className="text-xs text-gray-500">Training Time:</span>
-                      <p className="font-medium">2h 15m</p>
-                    </div>
-                    <div>
-                      <span className="text-xs text-gray-500">Dataset Size:</span>
-                      <p className="font-medium">1.2M records</p>
-                    </div>
-                  </div>
-                </div>
-                
+
                 <div className="flex justify-end space-x-3 pt-4">
                   <button className="px-4 py-2 border border-gray-300 rounded-lg text-gray-700 hover:bg-gray-50">
                     Retrain Model
                   </button>
-                  <button className="px-4 py-2 bg-indigo-600 rounded-lg text-white hover:bg-indigo-700">
+                  <button className="px-4 py-2 bg-indigo-600 rounded-lg text-white hover:bg-indigo-700" onClick={async()=>{
+                    try{
+                      await promoteModel(selectedModel.id)
+                      alert('Promoted');
+                    }catch(e){ console.error(e); alert('Promote failed') }
+                  }}>
                     Deploy to Production
                   </button>
                 </div>
