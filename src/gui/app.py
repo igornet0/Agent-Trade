@@ -21,7 +21,7 @@ from Dataset import DatasetTimeseries, LoaderTimeLine
 from MMM import AgentManager
 from train_models.loader import Loader as TrainLoader
 
-from core.database.engine import db_helper, set_db_helper
+from core.database.engine import db_helper, set_db_helper, initialize_db_helper
 from core.database.orm.agents import orm_get_agents, orm_set_active_version
 from core.database.orm.strategies import orm_list_strategies_for_user
 from core.database.orm.ml_models import (
@@ -97,24 +97,34 @@ async def ensure_db():
 
 
 async def fetch_agents_from_db(agent_type: str | None = None, timeframe: str | None = None):
-    await ensure_db()
-    async with db_helper.get_session() as session:
-        agents = await orm_get_agents(session, type_agent=agent_type)
-        if agents and timeframe:
-            agents = [a for a in agents if a.get("timeframe") == timeframe]
-        return agents or []
+    # создаём локальный AsyncEngine в рамках текущего event loop
+    local_db = await initialize_db_helper()
+    try:
+        async with local_db.get_session() as session:
+            agents = await orm_get_agents(session, type_agent=agent_type)
+            if agents and timeframe:
+                agents = [a for a in agents if a.get("timeframe") == timeframe]
+            return agents or []
+    finally:
+        await local_db.dispose()
 
 
 async def fetch_strategies(user_id: int = 1):
-    await ensure_db()
-    async with db_helper.get_session() as session:
-        return await orm_list_strategies_for_user(session, user_id)
+    local_db = await initialize_db_helper()
+    try:
+        async with local_db.get_session() as session:
+            return await orm_list_strategies_for_user(session, user_id)
+    finally:
+        await local_db.dispose()
 
 
 async def fetch_ml_models(type_filter: str | None = None):
-    await ensure_db()
-    async with db_helper.get_session() as session:
-        return await orm_get_ml_models(session, type=type_filter)
+    local_db = await initialize_db_helper()
+    try:
+        async with local_db.get_session() as session:
+            return await orm_get_ml_models(session, type=type_filter)
+    finally:
+        await local_db.dispose()
 
 
 # -------- Sidebar --------
@@ -243,9 +253,12 @@ with tab_train:
                         if pth_path:
                             try:
                                 async def _save_model_record():
-                                    await ensure_db()
-                                    async with db_helper.get_session() as session:
-                                        await orm_add_ml_model(session, type=agent_type, path_model=pth_path, version=str(getattr(agent, 'version', '0.0.1')))
+                                    local_db = await initialize_db_helper()
+                                    try:
+                                        async with local_db.get_session() as session:
+                                            await orm_add_ml_model(session, type=agent_type, path_model=pth_path, version=str(getattr(agent, 'version', '0.0.1')))
+                                    finally:
+                                        await local_db.dispose()
                                 asyncio.run(_save_model_record())
                                 st.toast("Модель зарегистрирована в БД", icon="✅")
                             except Exception as e:
@@ -320,18 +333,21 @@ with tab_eval:
                                 try:
                                     model_id = int(selection.split()[0].replace('#', ''))
                                     async def _save_stats(mid: int, loss_avg: float):
-                                        await ensure_db()
-                                        async with db_helper.get_session() as session:
-                                            await orm_add_model_stat(
-                                                session,
-                                                model_id=mid,
-                                                type="test",
-                                                loss=loss_avg,
-                                                accuracy=0.0,
-                                                precision=0.0,
-                                                recall=0.0,
-                                                f1=0.0,
-                                            )
+                                        local_db = await initialize_db_helper()
+                                        try:
+                                            async with local_db.get_session() as session:
+                                                await orm_add_model_stat(
+                                                    session,
+                                                    model_id=mid,
+                                                    type="test",
+                                                    loss=loss_avg,
+                                                    accuracy=0.0,
+                                                    precision=0.0,
+                                                    recall=0.0,
+                                                    f1=0.0,
+                                                )
+                                        finally:
+                                            await local_db.dispose()
                                     asyncio.run(_save_stats(model_id, sum(losses)/len(losses)))
                                     st.success("Метрики сохранены")
                                 except Exception as e:
