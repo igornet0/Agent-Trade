@@ -688,8 +688,14 @@ def evaluate_news_task(self, config: dict):
                             correlation = 0.0
                         
                         # Calculate additional metrics
-                        score_volatility = math.sqrt(sum((s - sum(news_scores)/len(news_scores))**2 / len(news_scores)) if news_scores else 0.0
-                        avg_score = sum(news_scores) / len(news_scores) if news_scores else 0.0
+                        if news_scores:
+                            mean_score_all = sum(news_scores) / len(news_scores)
+                            variance = sum((s - mean_score_all) ** 2 for s in news_scores) / len(news_scores)
+                            score_volatility = math.sqrt(variance)
+                            avg_score = mean_score_all
+                        else:
+                            score_volatility = 0.0
+                            avg_score = 0.0
                         
                         # Determine sentiment classification
                         if abs(correlation) >= correlation_threshold:
