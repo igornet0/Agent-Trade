@@ -486,9 +486,11 @@ def run_pipeline_backtest_task(self, config_json: dict | None = None, timeframe:
             trades = 0
             per_asset_trades: list[int] = []
             per_asset_returns_signal: list[list[float]] = []
+            per_asset_trade_rows: list[list[tuple[int, str, int, float]]] = []  # (coin_id, ts, signal, ret)
             for rets, signals, risk_cap in zip(per_asset_rets, per_asset_signals, per_asset_risk_cap):
                 asset_trades = 0
                 asset_sig_returns: list[float] = []
+                asset_rows: list[tuple[int, str, int, float]] = []
                 for i in range(1, len(signals)):
                     sig = signals[i-1]
                     if sig != 0:
@@ -497,10 +499,17 @@ def run_pipeline_backtest_task(self, config_json: dict | None = None, timeframe:
                         asset_trades += 1
                         trades += 1
                         asset_sig_returns.append(ret)
+                        # timestamp aligned to returns index i
+                        if i < len(datetimes[-min_len:]):
+                            ts = datetimes[-min_len:][i]
+                        else:
+                            ts = datetimes[-1] if datetimes else ""
+                        asset_rows.append((0, ts, sig, ret))  # coin_id fill later
                         if ret > 0:
                             wins += 1
                 per_asset_trades.append(asset_trades)
                 per_asset_returns_signal.append(asset_sig_returns)
+                per_asset_trade_rows.append(asset_rows)
             winrate = (wins / trades) if trades else 0.0
             # Portfolio equal-weight across assets
             # Align asset signal-returns by min len
@@ -517,6 +526,14 @@ def run_pipeline_backtest_task(self, config_json: dict | None = None, timeframe:
 
             # Optional: write equity curve artifact (CSV) to temp file
             artifacts = {}
+            per_coin_pnl: dict[str, float] = {}
+            try:
+                # per-coin pnl (sum of signal returns)
+                for idx, asset_returns in enumerate(per_asset_returns_signal):
+                    if idx < len(coin_ids):
+                        per_coin_pnl[str(coin_ids[idx])] = round(sum(asset_returns), 6)
+            except Exception:
+                pass
             try:
                 if datetimes:
                     # Align datetimes to returns length
@@ -539,6 +556,23 @@ def run_pipeline_backtest_task(self, config_json: dict | None = None, timeframe:
                 # do not fail task if artifacts write fails
                 pass
 
+            # Optional: write trades CSV per asset
+            try:
+                if per_asset_trade_rows and coin_ids:
+                    rows = ["timestamp,coin_id,signal,return"]
+                    for idx, asset_rows in enumerate(per_asset_trade_rows):
+                        coin_id = coin_ids[idx] if idx < len(coin_ids) else 0
+                        for (_, ts, sig, ret) in asset_rows:
+                            rows.append(f"{ts},{coin_id},{sig},{ret:.10f}")
+                    out_dir = os.environ.get("PIPELINE_ARTIFACTS_DIR", "/tmp")
+                    os.makedirs(out_dir, exist_ok=True)
+                    out_path = os.path.join(out_dir, f"trades_{uuid4().hex}.csv")
+                    with open(out_path, "w", encoding="utf-8") as f:
+                        f.write("\n".join(rows))
+                    artifacts["trades_csv"] = out_path
+            except Exception:
+                pass
+
             metrics.update({
                 'bars': min_len,
                 'sma_period': sma_period,
@@ -550,6 +584,7 @@ def run_pipeline_backtest_task(self, config_json: dict | None = None, timeframe:
                 'MaxDrawdown': round(mdd, 6),
                 'timeframe': tf,
                 'artifacts': artifacts,
+                'per_coin_pnl': per_coin_pnl,
             })
             self.update_state(state='SUCCESS', meta={'progress': 100, 'message': 'Готово', 'metrics': metrics})
             return {"status": "success", "metrics": metrics}

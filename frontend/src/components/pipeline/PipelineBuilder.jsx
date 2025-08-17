@@ -441,15 +441,36 @@ export default function PipelineBuilder() {
                       <div className="flex justify-between"><span className="text-gray-600">MaxDrawdown</span><span className="font-mono">{task.meta.metrics.MaxDrawdown}</span></div>
                     </div>
                   )}
-                  {task.meta.metrics.artifacts && task.meta.metrics.artifacts.equity_csv && (
+                  {task.meta.metrics.artifacts && (task.meta.metrics.artifacts.equity_csv || task.meta.metrics.artifacts.trades_csv) && (
                     <div className="mt-3 p-2 rounded border bg-gray-50">
                       <div className="font-medium mb-1">Артефакты</div>
-                      <div className="flex items-center justify-between text-[11px] break-all">
-                        <span className="text-gray-600 mr-2">equity_csv:</span>
-                        <span className="font-mono">{task.meta.metrics.artifacts.equity_csv}</span>
-                      </div>
+                      {task.meta.metrics.artifacts.equity_csv && (
+                        <div className="flex items-center justify-between text-[11px] break-all">
+                          <span className="text-gray-600 mr-2">equity_csv:</span>
+                          <span className="font-mono">{task.meta.metrics.artifacts.equity_csv}</span>
+                        </div>
+                      )}
+                      {task.meta.metrics.artifacts.trades_csv && (
+                        <div className="flex items-center justify-between text-[11px] break-all mt-1">
+                          <span className="text-gray-600 mr-2">trades_csv:</span>
+                          <span className="font-mono">{task.meta.metrics.artifacts.trades_csv}</span>
+                        </div>
+                      )}
                       <div className="mt-2 flex gap-2">
                         <button onClick={() => copyToClipboard(task.meta.metrics.artifacts.equity_csv)} className="px-2 py-1 border rounded bg-white hover:bg-gray-100 text-xs">Скопировать путь</button>
+                        {task.meta.metrics.artifacts.trades_csv && (
+                          <button onClick={() => copyToClipboard(task.meta.metrics.artifacts.trades_csv)} className="px-2 py-1 border rounded bg-white hover:bg-gray-100 text-xs">Скопировать trades</button>
+                        )}
+                      </div>
+                    </div>
+                  )}
+                  {task.meta.metrics.per_coin_pnl && (
+                    <div className="mt-3 p-2 rounded border bg-gray-50">
+                      <div className="font-medium mb-1">PnL по монетам</div>
+                      <div className="grid grid-cols-2 gap-2 text-[11px]">
+                        {Object.entries(task.meta.metrics.per_coin_pnl).map(([coin, val]) => (
+                          <div key={coin} className="flex justify-between"><span className="text-gray-600">{coin}</span><span className="font-mono">{val}</span></div>
+                        ))}
                       </div>
                     </div>
                   )}
