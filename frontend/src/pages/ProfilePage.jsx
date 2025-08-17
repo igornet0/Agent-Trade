@@ -7,6 +7,7 @@ import StrategyTabContent from '../components/profile/StrategyTabContent';
 import StrategyTable from '../components/profile/StrategyTable';
 import CoinsTabContent from '../components/profile/CoinsTabContent';
 import ModuleTester from '../components/profile/ModuleTester';
+import PipelineBuilder from '../components/pipeline/PipelineBuilder';
 
 const ProfileSidebar = ({ activeTab, setActiveTab, onLogout }) => {
   const navItems = [
@@ -113,7 +114,7 @@ const ProfilePage = ({ user, onLogout }) => {
           {activeTab === 'finance' && <FinanceTabContent />}
           {activeTab === 'agents' && <AgentsTabContent />}
           {activeTab === 'models' && <ModelsTabContent />}
-          {activeTab === 'pipeline' && <StrategyTabContent />}
+          {activeTab === 'pipeline' && <PipelineBuilder />}
           {activeTab === 'strategy' && <StrategyTabContent />}
           {activeTab === 'strategys' && <StrategyTable />}
           {activeTab === 'coins' && <CoinsTabContent />}
