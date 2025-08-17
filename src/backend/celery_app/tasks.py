@@ -216,6 +216,29 @@ def evaluate_model_task(self, agent_id: int, coins: list[int], timeframe: str = 
 
     return asyncio.run(_run())
 
+
+# --------- Lightweight placeholders for Stage 1 contracts ---------
+@celery_app.task(bind=True)
+def train_news_task(self, coins: list[int] | None = None, config: dict | None = None):
+    try:
+        self.update_state(state='PROGRESS', meta={'progress': 10})
+        # Placeholder: here we would fetch recent news, compute influence and persist background
+        self.update_state(state='PROGRESS', meta={'progress': 100})
+        return {"status": "success", "coins": coins or []}
+    except Exception as e:
+        logger.exception("train_news_task failed")
+        return {"status": "error", "detail": str(e)}
+
+
+@celery_app.task(bind=True)
+def evaluate_trade_aggregator_task(self, strategy_config: dict | None = None):
+    try:
+        self.update_state(state='PROGRESS', meta={'progress': 100})
+        return {"status": "success", "metrics": {"Sharpe": None, "PnL": None}}
+    except Exception as e:
+        logger.exception("evaluate_trade_aggregator_task failed")
+        return {"status": "error", "detail": str(e)}
+
     # db = SessionLocal()
     # try:
     #     # Обновляем статус задачи в БД

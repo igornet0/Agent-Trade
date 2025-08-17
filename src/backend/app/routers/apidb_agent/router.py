@@ -41,7 +41,7 @@ from backend.app.configuration import (Server,
                                        verify_authorization_admin)
 
 from backend.celery_app.tasks import train_model_task
-from backend.celery_app.tasks import evaluate_model_task
+from backend.celery_app.tasks import evaluate_model_task, train_news_task
 from backend.celery_app.create_app import celery_app
 from backend.app.configuration.schemas.agent import TrainRequest
 
@@ -304,11 +304,15 @@ async def unified_train(agent_type: AgentType,
 async def unified_evaluate(agent_type: AgentType,
                            payload: EvaluateRequest,
                            _: User = Depends(verify_authorization_admin)):
-    task = evaluate_model_task.delay(agent_id=payload.agent_id,
-                                     coins=payload.coins,
-                                     timeframe=payload.timeframe or "5m",
-                                     start=payload.start.isoformat() if payload.start else None,
-                                     end=payload.end.isoformat() if payload.end else None)
+    # Simple branch: news type can run dedicated task in future
+    if agent_type == AgentType.NEWS and not payload.agent_id:
+        task = train_news_task.delay(coins=payload.coins or [], config=None)
+    else:
+        task = evaluate_model_task.delay(agent_id=payload.agent_id,
+                                         coins=payload.coins,
+                                         timeframe=payload.timeframe or "5m",
+                                         start=payload.start.isoformat() if payload.start else None,
+                                         end=payload.end.isoformat() if payload.end else None)
     return {"task_id": task.id}
 
 @router.post("/agents/{agent_id}/promote")
