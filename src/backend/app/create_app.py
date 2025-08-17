@@ -9,8 +9,8 @@ from fastapi.openapi.docs import (
 from fastapi.responses import JSONResponse
 from starlette.responses import HTMLResponse
 
-from app.configuration.server import Server
-from app.configuration.lifespan import app_lifespan as lifespan
+from backend.app.configuration.server import Server
+from backend.app.configuration.lifespan import app_lifespan as lifespan
 
 import logging
 
