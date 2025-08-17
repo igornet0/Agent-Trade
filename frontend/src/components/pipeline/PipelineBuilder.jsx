@@ -1,11 +1,13 @@
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useState } from 'react';
+import ReactFlow, { Background, Controls, addEdge, MiniMap } from 'reactflow';
+import 'reactflow/dist/style.css';
 import { savePipeline, runPipeline } from '../../services/pipelineService';
 import { getTaskStatus } from '../../services/mlService';
 
 export default function PipelineBuilder() {
   const [nodes, setNodes] = useState([
-    { id: 'data', type: 'DataSource', config: { source: 'OHLCV' } },
-    { id: 'pred', type: 'Pred_time', config: { seq_len: 96, pred_len: 12 } },
+    { id: 'data', type: 'DataSource', position: { x: 100, y: 100 }, data: { label: 'DataSource', config: { source: 'OHLCV' } } },
+    { id: 'pred', type: 'Pred_time', position: { x: 400, y: 100 }, data: { label: 'Pred_time', config: { seq_len: 96, pred_len: 12 } } },
   ]);
   const [edges, setEdges] = useState([{ id: 'e1', source: 'data', target: 'pred' }]);
   const [timeframe, setTimeframe] = useState('5m');
@@ -37,13 +39,20 @@ export default function PipelineBuilder() {
     return () => clearInterval(timer);
   }, [taskId]);
 
-  const config = { nodes, edges, timeframe, start: start || null, end: end || null };
+  // Serialize ReactFlow nodes -> PipelineConfig
+  const pipelineConfig = useMemo(() => ({
+    nodes: nodes.map(n => ({ id: n.id, type: n.type, config: n.data?.config || {} })),
+    edges: edges.map(e => ({ id: e.id, source: e.source, target: e.target })),
+    timeframe,
+    start: start || null,
+    end: end || null,
+  }), [nodes, edges, timeframe, start, end]);
 
   const onSave = async () => {
-    try { await savePipeline(config); alert('Пайплайн сохранён'); } catch (e) { console.error(e); alert('Ошибка сохранения'); }
+    try { await savePipeline(pipelineConfig); alert('Пайплайн сохранён'); } catch (e) { console.error(e); alert('Ошибка сохранения'); }
   };
   const onRun = async () => {
-    try { const res = await runPipeline(config); setTaskId(res.task_id); } catch (e) { console.error(e); alert('Ошибка запуска'); }
+    try { const res = await runPipeline(pipelineConfig); setTaskId(res.task_id); } catch (e) { console.error(e); alert('Ошибка запуска'); }
   };
 
   const onAddNode = () => {
@@ -51,7 +60,7 @@ export default function PipelineBuilder() {
     if (nodes.some(n => n.id === newNodeId)) return alert('Узел с таким id уже существует');
     let parsed = {};
     try { parsed = newNodeConfig ? JSON.parse(newNodeConfig) : {}; } catch { return alert('config должен быть валидным JSON'); }
-    setNodes(prev => [...prev, { id: newNodeId, type: newNodeType, config: parsed }]);
+    setNodes(prev => [...prev, { id: newNodeId, type: newNodeType, position: { x: 200, y: 200 + prev.length * 40 }, data: { label: newNodeType, config: parsed } }]);
   };
 
   const onRemoveNode = (id) => {
@@ -67,6 +76,18 @@ export default function PipelineBuilder() {
   };
 
   const onRemoveEdge = (id) => setEdges(prev => prev.filter(e => e.id !== id));
+
+  // ReactFlow handlers
+  const onConnect = useCallback((params) => setEdges((eds) => addEdge({ ...params, id: `e_${params.source}_${params.target}_${eds.length+1}` }, eds)), []);
+  const onNodesChange = useCallback((changes) => {
+    setNodes((nds) => nds.map(n => {
+      const ch = changes.find(c => c.id === n.id);
+      if (!ch) return n;
+      if (ch.type === 'position') return { ...n, position: ch.position };
+      return n;
+    }));
+  }, []);
+  const onEdgesChange = useCallback(() => {}, []);
 
   return (
     <div className="lg:col-span-3">
@@ -96,6 +117,13 @@ export default function PipelineBuilder() {
         </div>
 
         <div className="bg-gray-50 p-4 rounded-lg space-y-4">
+          <div className="h-[400px] w-full rounded border overflow-hidden">
+            <ReactFlow nodes={nodes} edges={edges} onConnect={onConnect} onNodesChange={onNodesChange} onEdgesChange={onEdgesChange} fitView>
+              <MiniMap />
+              <Controls />
+              <Background />
+            </ReactFlow>
+          </div>
           <div>
             <div className="text-sm font-medium text-gray-800 mb-2">Добавить узел</div>
             <div className="grid grid-cols-1 md:grid-cols-4 gap-3">
