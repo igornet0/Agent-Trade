@@ -1,9 +1,10 @@
 # модели для БД
 from typing import Literal, List
-from sqlalchemy import DateTime, ForeignKey, Float, String, BigInteger, func, Integer, Boolean, UniqueConstraint, CheckConstraint
+from sqlalchemy import DateTime, ForeignKey, Float, String, BigInteger, func, Integer, Boolean, UniqueConstraint, CheckConstraint, Column, JSON
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from core.database.base import Base
+from datetime import datetime
 
 
 class NewsCoin(Base):
@@ -45,6 +46,8 @@ class Coin(Base):
         secondary="news_coins",
         back_populates='news_coin'
     )
+
+    news_background: Mapped[List['NewsBackground']] = relationship(back_populates='coin')
 
 
 class User(Base):
@@ -163,3 +166,23 @@ class NewsHistoryCoin(Base):
 
     # news: Mapped['News'] = relationship(back_populates='history_coins')
     # coin: Mapped['Coin'] = relationship(back_populates='history_coins')
+
+
+class NewsBackground(Base):
+    __tablename__ = "news_background"
+    
+    id = Column(Integer, primary_key=True, index=True)
+    coin_id = Column(Integer, ForeignKey("coins.id"), nullable=False)
+    timestamp = Column(DateTime, nullable=False)
+    score = Column(Float, nullable=False)
+    source_count = Column(Integer, nullable=False, default=0)
+    sources_breakdown = Column(JSON, nullable=True)
+    window_hours = Column(Integer, nullable=False, default=24)
+    decay_factor = Column(Float, nullable=False, default=0.95)
+    created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
+    
+    # Relationships
+    coin = relationship("Coin", back_populates="news_background")
+    
+    class Config:
+        orm_mode = True

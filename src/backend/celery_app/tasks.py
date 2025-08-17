@@ -457,9 +457,307 @@ def evaluate_model_task(self, agent_id: int, coins: list[int], timeframe: str = 
 # --------- Lightweight placeholders for Stage 1 contracts ---------
 @celery_app.task(bind=True)
 def train_news_task(self, config: dict):
-    """Train News model with enhanced NLP processing"""
-    # Placeholder for News model training
-    return {"status": "success", "message": "News model training completed"}
+    """Train News model with enhanced NLP processing and background calculation"""
+    try:
+        from core.services.news_background_service import NewsBackgroundService
+        from core.database import db_helper
+        import asyncio
+        
+        # Extract configuration
+        coin_ids = config.get('coin_ids', [])
+        window_hours = config.get('window_hours', 24)
+        decay_factor = config.get('decay_factor', 0.95)
+        force_recalculate = config.get('force_recalculate', False)
+        
+        # Initialize service
+        news_service = NewsBackgroundService()
+        
+        async def _run():
+            async with db_helper.get_session() as session:
+                if coin_ids:
+                    # Calculate background for specific coins
+                    self.update_state(
+                        state='PROGRESS',
+                        meta={'progress': 10, 'message': f'Calculating background for {len(coin_ids)} coins...'}
+                    )
+                    
+                    results = await news_service.calculate_multiple_coins_background(
+                        session, coin_ids, window_hours, decay_factor
+                    )
+                    
+                    self.update_state(
+                        state='PROGRESS',
+                        meta={'progress': 80, 'message': 'Saving results to database...'}
+                    )
+                    
+                    # Process results
+                    processed_coins = 0
+                    errors = []
+                    
+                    for coin_id, result in results.items():
+                        if 'error' not in result:
+                            processed_coins += 1
+                        else:
+                            errors.append(f"Coin {coin_id}: {result['error']}")
+                    
+                    self.update_state(
+                        state='SUCCESS',
+                        meta={
+                            'progress': 100,
+                            'message': f'Completed: {processed_coins} coins processed',
+                            'results': {
+                                'coins_processed': processed_coins,
+                                'errors': errors,
+                                'window_hours': window_hours,
+                                'decay_factor': decay_factor
+                            }
+                        }
+                    )
+                    
+                    return {
+                        'status': 'success',
+                        'coins_processed': processed_coins,
+                        'errors': errors,
+                        'window_hours': window_hours,
+                        'decay_factor': decay_factor
+                    }
+                else:
+                    # Recalculate all coins
+                    self.update_state(
+                        state='PROGRESS',
+                        meta={'progress': 20, 'message': 'Getting all coins with news data...'}
+                    )
+                    
+                    coins = await news_service.get_coins_with_news_data(session)
+                    
+                    self.update_state(
+                        state='PROGRESS',
+                        meta={'progress': 40, 'message': f'Recalculating background for {len(coins)} coins...'}
+                    )
+                    
+                    result = await news_service.recalculate_all_backgrounds(
+                        session, window_hours, decay_factor
+                    )
+                    
+                    if result['status'] == 'success':
+                        self.update_state(
+                            state='SUCCESS',
+                            meta={
+                                'progress': 100,
+                                'message': f"Completed: {result['coins_processed']} coins processed",
+                                'results': result
+                            }
+                        )
+                    else:
+                        self.update_state(
+                            state='FAILURE',
+                            meta={'progress': 100, 'message': f"Failed: {result['error']}"}
+                        )
+                    
+                    return result
+        
+        return asyncio.run(_run())
+        
+    except Exception as e:
+        logger.exception("train_news_task failed")
+        return {"status": "error", "detail": str(e)}
+
+
+@celery_app.task(bind=True)
+def evaluate_news_task(self, config: dict):
+    """Evaluate News model performance and correlation with price movements"""
+    try:
+        from core.services.news_background_service import NewsBackgroundService
+        from core.database import db_helper
+        from core.database.orm.market import orm_get_timeseries_by_coin, orm_get_data_timeseries
+        from sqlalchemy import select
+        import asyncio
+        import math
+        
+        # Extract configuration
+        coin_ids = config.get('coin_ids', [])
+        evaluation_hours = config.get('evaluation_hours', 168)  # 1 week
+        correlation_threshold = config.get('correlation_threshold', 0.1)
+        
+        async def _run():
+            async with db_helper.get_session() as session:
+                news_service = NewsBackgroundService()
+                evaluation_results = {}
+                
+                for coin_id in coin_ids:
+                    try:
+                        self.update_state(
+                            state='PROGRESS',
+                            meta={'progress': 30, 'message': f'Evaluating coin {coin_id}...'}
+                        )
+                        
+                        # Get news background history
+                        end_time = datetime.utcnow()
+                        start_time = end_time - timedelta(hours=evaluation_hours)
+                        
+                        backgrounds = await news_service.get_background_history(
+                            session, coin_id, start_time, end_time
+                        )
+                        
+                        if not backgrounds:
+                            evaluation_results[coin_id] = {
+                                'status': 'no_data',
+                                'message': 'No news background data available'
+                            }
+                            continue
+                        
+                        # Get price data for correlation analysis
+                        ts = await orm_get_timeseries_by_coin(session, coin_id, timeframe='5m')
+                        if not ts:
+                            evaluation_results[coin_id] = {
+                                'status': 'no_price_data',
+                                'message': 'No price data available'
+                            }
+                            continue
+                        
+                        price_data = await orm_get_data_timeseries(session, ts.id)
+                        price_data = sorted(price_data, key=lambda x: x.datetime)
+                        
+                        # Align news background with price data
+                        aligned_data = []
+                        for bg in backgrounds:
+                            bg_time = datetime.fromisoformat(bg['timestamp'])
+                            
+                            # Find closest price data point
+                            closest_price = None
+                            min_diff = float('inf')
+                            
+                            for price in price_data:
+                                if start_time <= price.datetime <= end_time:
+                                    diff = abs((bg_time - price.datetime).total_seconds())
+                                    if diff < min_diff:
+                                        min_diff = diff
+                                        closest_price = price
+                            
+                            if closest_price and min_diff <= 300:  # Within 5 minutes
+                                aligned_data.append({
+                                    'news_score': bg['score'],
+                                    'price': float(closest_price.close),
+                                    'timestamp': bg['timestamp']
+                                })
+                        
+                        if len(aligned_data) < 10:
+                            evaluation_results[coin_id] = {
+                                'status': 'insufficient_data',
+                                'message': f'Only {len(aligned_data)} aligned data points'
+                            }
+                            continue
+                        
+                        # Calculate correlation metrics
+                        news_scores = [d['news_score'] for d in aligned_data]
+                        prices = [d['price'] for d in aligned_data]
+                        
+                        # Calculate price changes
+                        price_changes = []
+                        for i in range(1, len(prices)):
+                            if prices[i-1] != 0:
+                                change = (prices[i] - prices[i-1]) / prices[i-1]
+                                price_changes.append(change)
+                        
+                        # Calculate correlations
+                        if len(price_changes) >= len(news_scores) - 1:
+                            # Align news scores with price changes
+                            aligned_scores = news_scores[1:len(price_changes)+1]
+                            
+                            # Calculate correlation coefficient
+                            n = len(aligned_scores)
+                            if n > 1:
+                                mean_score = sum(aligned_scores) / n
+                                mean_change = sum(price_changes) / n
+                                
+                                numerator = sum((s - mean_score) * (c - mean_change) 
+                                              for s, c in zip(aligned_scores, price_changes))
+                                
+                                score_variance = sum((s - mean_score) ** 2 for s in aligned_scores)
+                                change_variance = sum((c - mean_change) ** 2 for c in price_changes)
+                                
+                                if score_variance > 0 and change_variance > 0:
+                                    correlation = numerator / math.sqrt(score_variance * change_variance)
+                                else:
+                                    correlation = 0.0
+                            else:
+                                correlation = 0.0
+                        else:
+                            correlation = 0.0
+                        
+                        # Calculate additional metrics
+                        score_volatility = math.sqrt(sum((s - sum(news_scores)/len(news_scores))**2 / len(news_scores)) if news_scores else 0.0
+                        avg_score = sum(news_scores) / len(news_scores) if news_scores else 0.0
+                        
+                        # Determine sentiment classification
+                        if abs(correlation) >= correlation_threshold:
+                            if correlation > 0:
+                                sentiment_accuracy = 'positive_correlation'
+                            else:
+                                sentiment_accuracy = 'negative_correlation'
+                        else:
+                            sentiment_accuracy = 'no_correlation'
+                        
+                        evaluation_results[coin_id] = {
+                            'status': 'success',
+                            'correlation': correlation,
+                            'sentiment_accuracy': sentiment_accuracy,
+                            'score_volatility': score_volatility,
+                            'avg_score': avg_score,
+                            'data_points': len(aligned_data),
+                            'evaluation_hours': evaluation_hours,
+                            'correlation_threshold': correlation_threshold
+                        }
+                        
+                    except Exception as e:
+                        logger.error(f"Failed to evaluate coin {coin_id}: {e}")
+                        evaluation_results[coin_id] = {
+                            'status': 'error',
+                            'error': str(e)
+                        }
+                
+                # Calculate overall metrics
+                successful_evaluations = [r for r in evaluation_results.values() if r['status'] == 'success']
+                
+                if successful_evaluations:
+                    avg_correlation = sum(r['correlation'] for r in successful_evaluations) / len(successful_evaluations)
+                    correlation_std = math.sqrt(sum((r['correlation'] - avg_correlation)**2 for r in successful_evaluations) / len(successful_evaluations))
+                    
+                    overall_metrics = {
+                        'avg_correlation': avg_correlation,
+                        'correlation_std': correlation_std,
+                        'coins_evaluated': len(coin_ids),
+                        'successful_evaluations': len(successful_evaluations),
+                        'evaluation_hours': evaluation_hours
+                    }
+                else:
+                    overall_metrics = {
+                        'coins_evaluated': len(coin_ids),
+                        'successful_evaluations': 0,
+                        'evaluation_hours': evaluation_hours
+                    }
+                
+                self.update_state(
+                    state='SUCCESS',
+                    meta={
+                        'progress': 100,
+                        'message': f'Evaluation completed for {len(coin_ids)} coins',
+                        'results': evaluation_results,
+                        'overall_metrics': overall_metrics
+                    }
+                )
+                
+                return {
+                    'status': 'success',
+                    'results': evaluation_results,
+                    'overall_metrics': overall_metrics
+                }
+        
+        return asyncio.run(_run())
+        
+    except Exception as e:
+        logger.exception("evaluate_news_task failed")
+        return {"status": "error", "detail": str(e)}
 
 
 @celery_app.task(bind=True)

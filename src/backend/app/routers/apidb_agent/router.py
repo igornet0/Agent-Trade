@@ -1,6 +1,6 @@
 
 import uuid
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Query
 from fastapi.security import HTTPBearer
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -319,18 +319,211 @@ async def unified_evaluate(agent_type: AgentType,
 
 # -------- News background endpoints (Stage 1 contract) --------
 @router.post("/news/recalc_background")
-async def news_recalc_background(coins: list[int] | None = None,
-                                 _: User = Depends(verify_authorization_admin)):
-    # Delegate to placeholder task for now
-    task = train_news_task.delay(coins=coins or [], config=None)
-    return {"task_id": task.id}
+async def recalc_news_background(
+    coins: Optional[str] = Query(None, description="Comma-separated list of coin IDs"),
+    window_hours: int = Query(24, description="Time window for background calculation"),
+    decay_factor: float = Query(0.95, description="Exponential decay factor"),
+    force_recalculate: bool = Query(False, description="Force recalculation ignoring cache"),
+    _: str = Depends(verify_authorization_admin)
+):
+    """Recalculate news background for specified coins or all coins"""
+    try:
+        from core.services.news_background_service import NewsBackgroundService
+        from core.database import db_helper
+        
+        # Parse coin IDs
+        coin_ids = []
+        if coins:
+            coin_ids = [int(cid.strip()) for cid in coins.split(',') if cid.strip().isdigit()]
+        
+        # Initialize service
+        news_service = NewsBackgroundService()
+        
+        # Prepare configuration
+        config = {
+            'coin_ids': coin_ids,
+            'window_hours': window_hours,
+            'decay_factor': decay_factor,
+            'force_recalculate': force_recalculate
+        }
+        
+        # Start Celery task
+        from backend.celery_app.create_app import celery_app
+        task = celery_app.send_task('backend.celery_app.tasks.train_news_task', kwargs=config)
+        
+        return {
+            "status": "started",
+            "task_id": task.id,
+            "config": config,
+            "message": f"News background recalculation started for {len(coin_ids) if coin_ids else 'all'} coins"
+        }
+        
+    except Exception as e:
+        logger.exception("Failed to start news background recalculation")
+        raise HTTPException(status_code=500, detail=str(e))
 
 
 @router.get("/news/background/{coin_id}")
-async def news_background(coin_id: int,
-                          _: User = Depends(verify_authorization_admin)):
-    # Placeholder: return 404 until storage implemented
-    raise HTTPException(status_code=404, detail="Background not implemented yet")
+async def get_news_background(
+    coin_id: int,
+    start_time: Optional[str] = Query(None, description="Start time (ISO format)"),
+    end_time: Optional[str] = Query(None, description="End time (ISO format)"),
+    limit: int = Query(1000, description="Maximum number of records to return"),
+    _: str = Depends(verify_authorization_admin)
+):
+    """Get news background for a specific coin"""
+    try:
+        from core.services.news_background_service import NewsBackgroundService
+        from core.database import db_helper
+        from datetime import datetime
+        
+        # Parse time parameters
+        start_dt = None
+        end_dt = None
+        
+        if start_time:
+            try:
+                start_dt = datetime.fromisoformat(start_time)
+            except ValueError:
+                raise HTTPException(status_code=400, detail="Invalid start_time format")
+        
+        if end_time:
+            try:
+                end_dt = datetime.fromisoformat(end_time)
+            except ValueError:
+                raise HTTPException(status_code=400, detail="Invalid end_time format")
+        
+        # Get background data
+        async with db_helper.get_session() as session:
+            news_service = NewsBackgroundService()
+            
+            # Try cache first
+            cached_data = await news_service.get_cached_background(coin_id)
+            if cached_data:
+                return {
+                    "status": "success",
+            "data": cached_data,
+            "source": "cache"
+        }
+            
+            # Get from database
+            backgrounds = await news_service.get_background_history(
+                session, coin_id, start_dt, end_dt, limit
+            )
+            
+            if not backgrounds:
+                # Calculate fresh background
+                background = await news_service.calculate_news_background(
+                    session, coin_id
+                )
+                return {
+                    "status": "success",
+                    "data": background,
+                    "source": "calculated"
+                }
+            
+            # Return latest background
+            latest = await news_service.get_latest_background(session, coin_id)
+            
+            return {
+                "status": "success",
+                "data": latest,
+                "history": backgrounds,
+                "source": "database"
+            }
+        
+    except Exception as e:
+        logger.exception(f"Failed to get news background for coin {coin_id}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.get("/news/background/{coin_id}/summary")
+async def get_news_background_summary(
+    coin_id: int,
+    hours: int = Query(24, description="Time window for summary"),
+    _: str = Depends(verify_authorization_admin)
+):
+    """Get summary statistics for news background"""
+    try:
+        from core.database.orm.news import orm_get_news_background_summary
+        from core.database import db_helper
+        
+        async with db_helper.get_session() as session:
+            summary = await orm_get_news_background_summary(session, coin_id, hours)
+            
+            return {
+                "status": "success",
+                "coin_id": coin_id,
+                "summary": summary
+            }
+        
+    except Exception as e:
+        logger.exception(f"Failed to get news background summary for coin {coin_id}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.get("/news/coins")
+async def get_coins_with_news(
+    _: str = Depends(verify_authorization_admin)
+):
+    """Get all coins that have news data"""
+    try:
+        from core.services.news_background_service import NewsBackgroundService
+        from core.database import db_helper
+        
+        async with db_helper.get_session() as session:
+            news_service = NewsBackgroundService()
+            coins = await news_service.get_coins_with_news_data(session)
+            
+            return {
+                "status": "success",
+                "coins": coins,
+                "count": len(coins)
+            }
+        
+    except Exception as e:
+        logger.exception("Failed to get coins with news data")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.post("/news/evaluate")
+async def evaluate_news_model(
+    request: dict,
+    _: str = Depends(verify_authorization_admin)
+):
+    """Evaluate News model performance"""
+    try:
+        from core.database import db_helper
+        
+        # Validate request
+        coin_ids = request.get('coin_ids', [])
+        evaluation_hours = request.get('evaluation_hours', 168)
+        correlation_threshold = request.get('correlation_threshold', 0.1)
+        
+        if not coin_ids:
+            raise HTTPException(status_code=400, detail="coin_ids is required")
+        
+        # Start Celery task
+        from backend.celery_app.create_app import celery_app
+        config = {
+            'coin_ids': coin_ids,
+            'evaluation_hours': evaluation_hours,
+            'correlation_threshold': correlation_threshold
+        }
+        
+        task = celery_app.send_task('backend.celery_app.tasks.evaluate_news_task', kwargs=config)
+        
+        return {
+            "status": "started",
+            "task_id": task.id,
+            "config": config,
+            "message": f"News model evaluation started for {len(coin_ids)} coins"
+        }
+        
+    except Exception as e:
+        logger.exception("Failed to start news model evaluation")
+        raise HTTPException(status_code=500, detail=str(e))
+
 
 @router.post("/agents/{agent_id}/promote")
 async def promote_agent(agent_id: int,
