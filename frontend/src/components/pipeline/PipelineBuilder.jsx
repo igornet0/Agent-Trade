@@ -51,6 +51,9 @@ export default function PipelineBuilder() {
   const [savedPipelineId, setSavedPipelineId] = useState('');
   const [loadPipelineId, setLoadPipelineId] = useState('');
   const [importInputKey, setImportInputKey] = useState(() => String(Date.now()));
+  const copyToClipboard = useCallback(async (text) => {
+    try { await navigator.clipboard.writeText(text); alert('Скопировано в буфер обмена'); } catch (e) { console.error(e); }
+  }, []);
 
   // Simple palette / editor state
   const NODE_TYPES = useMemo(() => ['DataSource','Indicators','News','Pred_time','Trade_time','Risk','Trade','Metrics'], []);
@@ -429,6 +432,27 @@ export default function PipelineBuilder() {
                       <div key={k} className="flex justify-between"><span className="text-gray-600">{k}</span><span className="font-mono">{String(v)}</span></div>
                     ))}
                   </div>
+                  {task.meta.metrics.PnL !== undefined && (
+                    <div className="mt-3 grid grid-cols-2 gap-2">
+                      <div className="flex justify-between"><span className="text-gray-600">PnL</span><span className="font-mono">{task.meta.metrics.PnL}</span></div>
+                      <div className="flex justify-between"><span className="text-gray-600">WinRate</span><span className="font-mono">{task.meta.metrics.WinRate}</span></div>
+                      <div className="flex justify-between"><span className="text-gray-600">Sharpe</span><span className="font-mono">{task.meta.metrics.Sharpe}</span></div>
+                      <div className="flex justify-between"><span className="text-gray-600">Sortino</span><span className="font-mono">{task.meta.metrics.Sortino}</span></div>
+                      <div className="flex justify-between"><span className="text-gray-600">MaxDrawdown</span><span className="font-mono">{task.meta.metrics.MaxDrawdown}</span></div>
+                    </div>
+                  )}
+                  {task.meta.metrics.artifacts && task.meta.metrics.artifacts.equity_csv && (
+                    <div className="mt-3 p-2 rounded border bg-gray-50">
+                      <div className="font-medium mb-1">Артефакты</div>
+                      <div className="flex items-center justify-between text-[11px] break-all">
+                        <span className="text-gray-600 mr-2">equity_csv:</span>
+                        <span className="font-mono">{task.meta.metrics.artifacts.equity_csv}</span>
+                      </div>
+                      <div className="mt-2 flex gap-2">
+                        <button onClick={() => copyToClipboard(task.meta.metrics.artifacts.equity_csv)} className="px-2 py-1 border rounded bg-white hover:bg-gray-100 text-xs">Скопировать путь</button>
+                      </div>
+                    </div>
+                  )}
                 </div>
               )}
               {task?.meta && (
