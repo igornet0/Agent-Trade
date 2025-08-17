@@ -9,6 +9,8 @@ __all__ = ("CoinResponse", "UserResponse", "UserLoginResponse",
            "EvaluateRequest", "EvaluateResponse",
            # New training API contracts
            "TrainRequest", "NewsTrainConfig", "PredTimeTrainConfig", "TradeTimeTrainConfig", "RiskTrainConfig", "TradeAggregatorConfig",
+           # Pipeline
+           "PipelineConfig",
            )
 
 from .coin import CoinData, CoinResponse, TimeLineCoin, CoinResponseData
@@ -29,3 +31,4 @@ from .agent import (AgentResponse, AgentTypeResponse, FeatureTypeResponse,
                                                      TrainRequest,
                                                      NewsTrainConfig, PredTimeTrainConfig, TradeTimeTrainConfig, RiskTrainConfig, TradeAggregatorConfig)
 from .strategy import (CreateStrategyResponse, StrategyResponse, StrategyModelsUpdate)
+from .pipeline import PipelineConfig
