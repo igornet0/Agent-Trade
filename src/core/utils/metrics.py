@@ -141,3 +141,17 @@ def sortino_ratio(returns: Sequence[float], eps: float = 1e-12) -> float:
     return mean / std * math.sqrt(len(returns))
 
 
+def aggregate_returns_equal_weight(returns_per_asset: Sequence[Sequence[float]]) -> List[float]:
+    """Aggregate per-asset returns into equal-weight portfolio returns (time-aligned by min length)."""
+    if not returns_per_asset:
+        return []
+    min_len = min(len(r) for r in returns_per_asset)
+    if min_len == 0:
+        return []
+    out: List[float] = []
+    n = len(returns_per_asset)
+    for t in range(min_len):
+        out.append(sum(returns_per_asset[i][t] for i in range(n)) / n)
+    return out
+
+

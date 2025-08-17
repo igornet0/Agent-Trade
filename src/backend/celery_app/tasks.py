@@ -12,7 +12,13 @@ from core.database.orm.market import (
     orm_get_timeseries_by_coin as market_get_ts,
     orm_get_data_timeseries as market_get_data,
 )
-from core.utils.metrics import equity_curve, max_drawdown, sharpe_ratio, sortino_ratio
+from core.utils.metrics import (
+    equity_curve,
+    max_drawdown,
+    sharpe_ratio,
+    sortino_ratio,
+    aggregate_returns_equal_weight,
+)
 from core.database.orm_query import (
     orm_get_agent_by_id,
     orm_get_train_agent,
@@ -292,26 +298,37 @@ def run_pipeline_backtest_task(self, config_json: dict | None = None, timeframe:
             # Resolve timeframe
             tf = timeframe or cfg.get('timeframe') or '5m'
 
-            # 1) Load data
+            # 1) Load data (support multi-coin)
             step(1, *steps[0])
-            # pick first DataSource
+            # pick DataSource
             data_source = next((n for n in nodes if n.get('type') == 'DataSource'), None)
             coin_ids: list[int] = []
             if data_source and isinstance(data_source.get('config'), dict):
                 coin_ids = data_source['config'].get('coins', []) or []
-            closes: list[float] = []
+            per_asset_closes: list[list[float]] = []
             datetimes: list[str] = []
             async with db_helper.get_session() as session:  # type: AsyncSession
-                if coin_ids:
-                    ts = await market_get_ts(session, coin_ids[0], timeframe=tf)
-                    if ts:
-                        rows = await market_get_data(session, ts.id)
-                        rows_sorted = sorted(rows, key=lambda r: r.datetime)
-                        for r in rows_sorted:
-                            closes.append(float(r.close))
-                            datetimes.append(r.datetime.isoformat())
-            metrics['bars'] = len(closes)
-            if len(closes) < 30:
+                target_coins = coin_ids or []
+                # fallback: if not set, try any available timeseries via ORM helper? Here keep empty -> early return
+                for idx, coin_id in enumerate(target_coins):
+                    ts = await market_get_ts(session, coin_id, timeframe=tf)
+                    if not ts:
+                        per_asset_closes.append([])
+                        continue
+                    rows = await market_get_data(session, ts.id)
+                    rows_sorted = sorted(rows, key=lambda r: r.datetime)
+                    closes_i: list[float] = []
+                    if idx == 0:
+                        datetimes = [r.datetime.isoformat() for r in rows_sorted]
+                    for r in rows_sorted:
+                        closes_i.append(float(r.close))
+                    per_asset_closes.append(closes_i)
+
+            # Align by min length
+            min_len = min((len(c) for c in per_asset_closes), default=0)
+            per_asset_closes = [c[-min_len:] for c in per_asset_closes if min_len > 0]
+            metrics['bars'] = min_len
+            if min_len < 30:
                 # not enough data, return early
                 self.update_state(state='SUCCESS', meta={'progress': 100, 'message': 'Недостаточно данных', 'metrics': metrics})
                 return {"status": "success", "metrics": metrics}
@@ -330,73 +347,93 @@ def run_pipeline_backtest_task(self, config_json: dict | None = None, timeframe:
                         except Exception:
                             pass
                         break
-            sma = []
-            s = 0.0
-            for i, c in enumerate(closes):
-                s += c
-                if i >= sma_period:
-                    s -= closes[i - sma_period]
-                if i >= sma_period - 1:
-                    sma.append(s / sma_period)
-                else:
-                    sma.append(None)
+            per_asset_sma: list[list[float | None]] = []
+            for closes in per_asset_closes:
+                sma = []
+                s = 0.0
+                for i, c in enumerate(closes):
+                    s += c
+                    if i >= sma_period:
+                        s -= closes[i - sma_period]
+                    if i >= sma_period - 1:
+                        sma.append(s / sma_period)
+                    else:
+                        sma.append(None)
+                per_asset_sma.append(sma)
 
             # 3) Merge news (placeholder)
             step(3, *steps[2])
 
             # 4) Pred_time: naive direction vs SMA
             step(4, *steps[3])
-            pred_dir = []  # 1 up, -1 down, 0 none
-            for i, c in enumerate(closes):
-                if sma[i] is None:
-                    pred_dir.append(0)
-                else:
-                    pred_dir.append(1 if c > sma[i] else -1)
+            per_asset_pred_dir: list[list[int]] = []
+            for closes, sma in zip(per_asset_closes, per_asset_sma):
+                pred_dir = []  # 1 up, -1 down, 0 none
+                for i, c in enumerate(closes):
+                    if sma[i] is None:
+                        pred_dir.append(0)
+                    else:
+                        pred_dir.append(1 if c > sma[i] else -1)
+                per_asset_pred_dir.append(pred_dir)
 
             # 5) Trade_time: thresholding -> keep same as pred_dir (simplified)
             step(5, *steps[4])
-            signals = pred_dir
+            per_asset_signals = per_asset_pred_dir
 
             # 6) Risk: cap position based on simple volatility
             step(6, *steps[5])
-            rets = []
-            for i in range(1, len(closes)):
-                if closes[i-1] == 0:
-                    rets.append(0.0)
-                else:
-                    rets.append((closes[i] / closes[i-1]) - 1.0)
-            vol = (sum((r - (sum(rets)/len(rets)))**2 for r in rets)/max(len(rets)-1,1))**0.5 if rets else 0.0
-            risk_cap = 1.0 if vol == 0 else min(1.0, 0.02 / max(vol, 1e-6))
+            per_asset_rets: list[list[float]] = []
+            per_asset_risk_cap: list[float] = []
+            for closes in per_asset_closes:
+                rets = []
+                for i in range(1, len(closes)):
+                    if closes[i-1] == 0:
+                        rets.append(0.0)
+                    else:
+                        rets.append((closes[i] / closes[i-1]) - 1.0)
+                vol = (sum((r - (sum(rets)/len(rets)))**2 for r in rets)/max(len(rets)-1,1))**0.5 if rets else 0.0
+                risk_cap = 1.0 if vol == 0 else min(1.0, 0.02 / max(vol, 1e-6))
+                per_asset_rets.append(rets)
+                per_asset_risk_cap.append(risk_cap)
 
             # 7) Trade: backtest PnL
             step(7, *steps[6])
             pnl = 0.0
             wins = 0
             trades = 0
-            for i in range(1, len(closes)):
-                sig = signals[i-1]
-                if sig != 0:
-                    ret = rets[i-1] * sig * risk_cap
-                    pnl += ret
-                    trades += 1
-                    if ret > 0:
-                        wins += 1
+            per_asset_trades: list[int] = []
+            per_asset_returns_signal: list[list[float]] = []
+            for rets, signals, risk_cap in zip(per_asset_rets, per_asset_signals, per_asset_risk_cap):
+                asset_trades = 0
+                asset_sig_returns: list[float] = []
+                for i in range(1, len(signals)):
+                    sig = signals[i-1]
+                    if sig != 0:
+                        ret = rets[i-1] * sig * risk_cap
+                        pnl += ret
+                        asset_trades += 1
+                        trades += 1
+                        asset_sig_returns.append(ret)
+                        if ret > 0:
+                            wins += 1
+                per_asset_trades.append(asset_trades)
+                per_asset_returns_signal.append(asset_sig_returns)
             winrate = (wins / trades) if trades else 0.0
-            sharpe = 0.0
-            if rets:
-                mean = sum(rets)/len(rets)
-                std = (sum((r-mean)**2 for r in rets)/max(len(rets)-1,1))**0.5
-                if std > 0:
-                    sharpe = mean/std * math.sqrt(len(rets))
+            # Portfolio equal-weight across assets
+            # Align asset signal-returns by min len
+            port_rets = aggregate_returns_equal_weight(
+                [r for r in per_asset_returns_signal if r]
+            )
+            sharpe = sharpe_ratio(port_rets)
 
             # 8) Metrics
             step(8, *steps[7])
-            eq = equity_curve([rets[i-1] * signals[i-1] * risk_cap for i in range(1, len(closes))], start_equity=1.0)
+            eq = equity_curve(port_rets, start_equity=1.0)
             mdd = max_drawdown(eq)
-            sortino = sortino_ratio([rets[i-1] * signals[i-1] * risk_cap for i in range(1, len(closes))])
+            sortino = sortino_ratio(port_rets)
 
             metrics.update({
-                'bars': len(closes),
+                'bars': min_len,
                 'sma_period': sma_period,
                 'signals': trades,
                 'PnL': round(pnl, 6),
