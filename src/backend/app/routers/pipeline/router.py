@@ -17,7 +17,7 @@ _PIPELINES: dict[str, dict] = {}
 @router.post("/run")
 async def run_pipeline(config: PipelineConfig, _: str = Depends(verify_authorization_admin)):
     # Placeholder: create async result to simulate orchestrator
-    task = celery_app.send_task('backend.celery_app.tasks.run_pipeline_backtest_task', kwargs={"config_json": config.model_dump()})
+    task = celery_app.send_task('backend.celery_app.tasks.run_pipeline_backtest_task', kwargs={"config_json": config.model_dump(), "pipeline_id": None})
     return {"task_id": task.id}
 
 
@@ -84,5 +84,16 @@ async def get_backtest(bt_id: int, _: str = Depends(verify_authorization_admin))
             "artifacts": obj.artifacts,
             "created_at": obj.created_at.isoformat() if obj.created_at else None,
         }
+
+
+@router.post("/run/{pipeline_id}")
+async def run_pipeline_by_id(pipeline_id: int, _: str = Depends(verify_authorization_admin)):
+    # Load pipeline config from DB and trigger task
+    async with db_helper.get_session() as session:
+        obj = await session.get(PipelineModel, int(pipeline_id))
+        if not obj:
+            raise HTTPException(status_code=404, detail="Pipeline not found")
+        task = celery_app.send_task('backend.celery_app.tasks.run_pipeline_backtest_task', kwargs={"config_json": obj.config_json, "pipeline_id": pipeline_id})
+        return {"task_id": task.id}
 
 

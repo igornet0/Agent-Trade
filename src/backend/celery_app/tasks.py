@@ -273,7 +273,7 @@ def evaluate_trade_aggregator_task(self, strategy_config: dict | None = None):
 
 @celery_app.task(bind=True)
 def run_pipeline_backtest_task(self, config_json: dict | None = None, timeframe: str | None = None,
-                               start: str | None = None, end: str | None = None):
+                               start: str | None = None, end: str | None = None, pipeline_id: int | None = None):
     async def _run():
         try:
             cfg = config_json or {}
@@ -591,7 +591,7 @@ def run_pipeline_backtest_task(self, config_json: dict | None = None, timeframe:
             try:
                 async with db_helper.get_session() as session:
                     bt = BacktestModel(
-                        pipeline_id=None,
+                        pipeline_id=pipeline_id,
                         timeframe=tf,
                         start=start_dt,
                         end=end_dt,
