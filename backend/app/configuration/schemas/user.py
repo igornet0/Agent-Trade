@@ -13,7 +13,6 @@ class UserResponse(BaseModel):
     id: int
     login: str
     email: Optional[EmailStr] = None
-    password: str
     balance: float
     created: datetime
     active: Optional[bool] = True

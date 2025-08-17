@@ -1,6 +1,6 @@
 # модели для БД
 from typing import Literal, List
-from sqlalchemy import DateTime, ForeignKey, Float, String, BigInteger, func, Integer, Boolean
+from sqlalchemy import DateTime, ForeignKey, Float, String, BigInteger, func, Integer, Boolean, UniqueConstraint, CheckConstraint
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from core.database.base import Base
@@ -38,12 +38,8 @@ class Coin(Base):
         back_populates='coins'
     )
 
-    trains: Mapped[List["AgentTrain"]] = relationship(
-        "AgentTrain",  # Строковое имя класса
-        secondary="train_coins",  # Имя таблицы ассоциаций
-        back_populates="coins",  # Должно совпадать с именем в AgentTrain
-        viewonly=False
-    )
+    # Imported via string to avoid circular import; type is provided by Strategy_models.AgentTrain
+    trains: Mapped[List["AgentTrain"]] = relationship("AgentTrain", secondary="train_coins", back_populates="coins", viewonly=False)
 
     news: Mapped[List['News']] = relationship(
         secondary="news_coins",
@@ -77,6 +73,11 @@ class Portfolio(Base):
     
     coin: Mapped['Coin'] = relationship(back_populates='portfolio')
     user: Mapped['User'] = relationship(back_populates='portfolio')
+
+    __table_args__ = (
+        UniqueConstraint('user_id', 'coin_id', name='uq_portfolio_user_coin'),
+        CheckConstraint('amount >= 0', name='ck_portfolio_amount_non_negative'),
+    )
     
 
 class Timeseries(Base):
@@ -92,7 +93,7 @@ class Timeseries(Base):
 class DataTimeseries(Base):
 
     id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True)
-    timeseries_id: Mapped[int] = mapped_column(ForeignKey('timeseriess.id'))  
+    timeseries_id: Mapped[int] = mapped_column(ForeignKey('timeseries.id'))  
     datetime: Mapped[DateTime] = mapped_column(DateTime, nullable=False) 
     open: Mapped[Float] = mapped_column(Float)
     max: Mapped[Float] = mapped_column(Float)

@@ -6,14 +6,17 @@ __all__ = ("User", "Coin", "Timeseries",
             "FeatureArgument", "AgentFeatureValue",
             "AgentAction", "ModelAction", "StatisticModel", 
             "Strategy", "StrategyCoin", "StrategyAgent", "AgentTrain",
-            "TrainCoin", "AgentFeature")
+            "TrainCoin", "AgentFeature", "NewsUrl",
+            "TelegramChannel", "BalanceOperation")
 
 from core.database.models.main_models import (User, Coin, Timeseries, 
                                   DataTimeseries, Transaction, Portfolio, 
-                                  News, NewsCoin, NewsHistoryCoin)
+                                  News, NewsCoin, NewsHistoryCoin,
+                                  NewsUrl, TelegramChannel)
 from core.database.models.ML_models import (Agent, AgentAction, AgentType, 
                                             Feature, AgentFeature, StatisticAgent,
                                             FeatureArgument, AgentFeatureValue,
                                             ML_Model, ModelAction, StatisticModel, ModelType)
 from core.database.models.Strategy_models import (Strategy, StrategyCoin, StrategyAgent, 
                                                   AgentTrain,TrainCoin)
+from core.database.models.billing_models import BalanceOperation

@@ -1,0 +1,68 @@
+name: CI
+
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+    branches: [ main ]
+
+jobs:
+  build-test:
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: postgres
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres" 
+          --health-interval 10s 
+          --health-timeout 5s 
+          --health-retries 5
+      rabbitmq:
+        image: rabbitmq:3-management
+        ports:
+          - 5672:5672
+          - 15672:15672
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Install Poetry
+        run: |
+          pip install poetry
+          poetry config virtualenvs.create false
+      - name: Install deps
+        run: poetry install --no-interaction --no-ansi
+      - name: Prepare env
+        run: |
+          mkdir -p settings
+          cat > settings/prod.env << 'EOF'
+          RUN__CELERY_BROKER_URL=amqp://guest:guest@localhost:5672//
+          RUN__CELERY_RESULT_BACKEND=rpc://
+          RUN__HOST=127.0.0.1
+          RUN__PORT=8000
+          RUN__FRONTEND_HOST=localhost
+          RUN__FRONTEND_PORT=5173
+          DB__USER=postgres
+          DB__PASSWORD=postgres
+          DB__HOST=localhost
+          DB__HOST_ALT=localhost
+          DB__DB_NAME=postgres
+          DB__PORT=5432
+          SECURITY__SECRET_KEY=devsecret
+          SECURITY__REFRESH_SECRET_KEY=devrefresh
+          SECURITY__ALGORITHM=RS256
+          EOF
+      - name: Lint
+        run: |
+          python -m py_compile $(git ls-files '*.py')
+      - name: Run tests
+        run: |
+          pytest -q
+

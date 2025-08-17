@@ -105,6 +105,8 @@ class AgentTrainResponse(BaseModel):
     status: Optional[str] = "open"
     timeframe: Optional[str] = "5m"
 
+    RP_I: Optional[bool] = False
+
     path_model: Optional[str] = ""
 
     a_conficent: Optional[float] = 0.95
@@ -126,6 +128,7 @@ class AgentResponse(BaseModel):
     type: AgentType
     status: Optional[str] = "open"
     timeframe: Optional[str] = "5m"
+    RP_I: Optional[bool] = False
 
     path_model: Optional[str] = ""
 
@@ -135,5 +138,7 @@ class AgentResponse(BaseModel):
     created: Optional[datetime] = None
 
     features: list[Feature] = []
+
+
 
 

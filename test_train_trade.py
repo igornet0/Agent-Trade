@@ -161,11 +161,13 @@ mixed = True
 # pred_len = 5
 # seq_len = 30
 agents_all = agent_manager.get_agents()
-for time, agents in agents_all.items():
-    if time != "5m":
-        continue
+
+agents = agents_all["5m"]
+time = "5m"
+while agents:
 
     print(time, len(agents))
+
     for i, agent in enumerate(agents):
         print(agent)
         # loader = loader_train.load_agent_data(loader_time, agent, batch_size, mixed)
@@ -178,7 +180,9 @@ for time, agents in agents_all.items():
         loader_train._train_single_agent(agent, loader_time, epochs, batch_size, 
                                  base_lr, weight_decay, patience, mixed, 
                                  mixed_precision)
-    break
+        break
+
+    del agents[i]
 
 #8175
 

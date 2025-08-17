@@ -47,6 +47,26 @@ def decode_access_token(token: str | bytes, public_key: str = settings.security.
     
     return jwt.decode(token, public_key, algorithms=[algorithm])
 
+def create_refresh_token(payload: dict,
+                         secret_key: str = settings.security.refresh_secret_key,
+                         algorithm: str = settings.security.refresh_algorithm,
+                         expires_delta: Optional[timedelta] = None):
+    to_encode = payload.copy()
+
+    if expires_delta:
+        expire = datetime.now(timezone.utc) + expires_delta
+    else:
+        expire = datetime.now(timezone.utc) + timedelta(days=settings.security.refresh_token_expire_days)
+
+    to_encode.update({"exp": expire, "iat": datetime.now(timezone.utc), TOKEN_TYPE_FIELD: REFRESH_TOKEN_TYPE})
+
+    return jwt.encode(to_encode, secret_key, algorithm=algorithm)
+
+def decode_refresh_token(token: str | bytes,
+                         secret_key: str = settings.security.refresh_secret_key,
+                         algorithm: str = settings.security.refresh_algorithm):
+    return jwt.decode(token, secret_key, algorithms=[algorithm])
+
 def get_current_token_payload(
     token: str = Depends(Server.oauth2_scheme),
 ) -> dict:

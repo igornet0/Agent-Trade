@@ -1,0 +1,54 @@
+{
+  "epochs_trained": 1,
+  "loss_history": [
+    3.6958966139035345
+  ],
+  "best_loss": 3.6958966139035345,
+  "name": "agent_trade_5m_full_RP",
+  "data_normalize": true,
+  "timetravel": "5m",
+  "indecaters": {
+    "SMA": {
+      "period": 13,
+      "column": "min"
+    },
+    "EMA": {
+      "period": 13,
+      "column": "close"
+    },
+    "RSI": {
+      "period": 25
+    },
+    "ATR": {
+      "period": 22
+    },
+    "BOLLINGER": {
+      "period": 44,
+      "num_std": 40
+    },
+    "VWAP": {},
+    "OBV": {}
+  },
+  "input_features": [
+    "close",
+    "max",
+    "min",
+    "volume"
+  ],
+  "datetime_format": "%m-%d %H:%M %w",
+  "seq_len": 30,
+  "pred_len": 10,
+  "hidden_size": 128,
+  "n_heads": 4,
+  "num_layers": 4,
+  "emb_month_size": 8,
+  "emb_weekday_size": 4,
+  "lstm_hidden": 256,
+  "dropout": 0.2,
+  "loss": 3.6958966139035345,
+  "hyperparams": {
+    "base_lr": 1e-05,
+    "batch_size": 150,
+    "weight_decay": 0.0001
+  }
+}

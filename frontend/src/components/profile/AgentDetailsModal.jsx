@@ -100,24 +100,6 @@ const AgentDetailsModal = ({ agent, onClose, onDelete }) => {
             </div>
           </div>
           
-          {/* <div className="mb-6">
-            <h4 className="text-sm font-medium text-gray-500 mb-2">Используемые фичи</h4>
-            <div className="flex flex-wrap gap-2">
-              {agent.features?.map((feature) => (
-                // <span 
-                //   key={feature.id} 
-                //   className="bg-blue-100 text-blue-800 text-xs font-medium px-2.5 py-0.5 rounded"
-                // >
-                //   {feature.name}
-                // </span>
-                <div 
-                  key={feature.id} 
-                  className="bg-gray-50 p-3 rounded-lg cursor-pointer hover:bg-gray-100 transition-colors"
-                  onClick={() => setExpandedFeatureId(expandedFeatureId === feature.id ? null : feature.id)}
-                ></div>
-              ))}
-            </div>
-          </div> */}
           <div className="mt-6">
             <h4 className="text-md font-medium text-gray-700 mb-2">Используемые фичи</h4>
             <div className="space-y-2">

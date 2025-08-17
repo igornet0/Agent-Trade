@@ -19,8 +19,10 @@ const TrainAgentModal = ({ isOpen, onClose, onAgentTrained }) => {
   const [batchSize, setBatchSize] = useState(150);
   const [learningRate, setLearningRate] = useState(0.001);
   const [weightDecay, setWeightDecay] = useState(0.0001);
+  const [useRandomFeatures, setUseRandomFeatures] = useState(false);
 
-  const Timeframe = [{"id":1, "value": '5m'},
+  const Timeframe = [
+    {"id":1, "value": '5m'},
     {"id":2, "value": '15m'},
     {"id":3, "value": '30m'},
     {"id":4, "value": '1h'},
@@ -42,6 +44,7 @@ const TrainAgentModal = ({ isOpen, onClose, onAgentTrained }) => {
     setLearningRate(0.001);
     setWeightDecay(0.0001);
     setTrainingError(null);
+    setUseRandomFeatures(false);
   };
 
   useEffect(() => {
@@ -75,6 +78,17 @@ const TrainAgentModal = ({ isOpen, onClose, onAgentTrained }) => {
 
   const handleRemoveFeature = (id) => {
     setFeatures(features.filter(f => f.id !== id));
+  };
+
+  const isAgentNews = selectedAgentType === 'AgentNews';
+
+  const handleAgentTypeChange = (value) => {
+    setSelectedAgentType(value);
+    // Сбрасываем фичи при выборе AgentNews
+    if (value === 'AgentNews') {
+      setFeatures([]);
+      setUseRandomFeatures(false);
+    }
   };
 
   const handleFeatureChange = (id, featureName) => {
@@ -118,6 +132,7 @@ const TrainAgentModal = ({ isOpen, onClose, onAgentTrained }) => {
           learning_rate: learningRate,
           weight_decay: weightDecay,
         },
+        RP_I: useRandomFeatures,
         features: features.map(f => ({
           id: availableFeatures.find(af => af.name === f.feature).id,
           name: f.feature,
@@ -181,7 +196,7 @@ const TrainAgentModal = ({ isOpen, onClose, onAgentTrained }) => {
             <select
               className="shadow appearance-none border rounded w-full py-2 px-3 text-gray-700 leading-tight focus:outline-none focus:shadow-outline"
               value={selectedAgentType}
-              onChange={(e) => setSelectedAgentType(e.target.value)}
+              onChange={(e) => handleAgentTypeChange(e.target.value)}
             >
               <option value="">Выберите тип модели</option>
               {agentTypes.map((type) => (
@@ -190,149 +205,230 @@ const TrainAgentModal = ({ isOpen, onClose, onAgentTrained }) => {
             </select>
           </div>
 
-           <div className="mb-6">
-            <label className="block text-gray-700 text-sm font-bold mb-2">
-              Таймфреим модели *
-            </label>
-            <select
-              className="shadow appearance-none border rounded w-full py-2 px-3 text-gray-700 leading-tight focus:outline-none focus:shadow-outline"
-              value={selectedAgentTimeframe}
-              onChange={(e) => setSelectedAgentTimeframe(e.target.value)}
-            >
-              <option value="">Выберите таймфреим</option>
-              {Timeframe.map((type) => (
-                <option key={type.id} value={type.value}>{type.value}</option>
-              ))}
-            </select>
-          </div>
-
-          <div className="mb-6">
-            <label className="block text-gray-700 text-sm font-bold mb-2">
-              Кол-во эпох
-            </label>
-            <input
-              type="number"
-              className="shadow appearance-none border rounded w-full py-2 px-3 text-gray-700 leading-tight focus:outline-none focus:shadow-outline"
-              value={epochs}
-              onChange={(e) => setEpochs(e.target.value)}
-              placeholder="Введите кол-во эпох"
-            />
-          </div>
-          <div className="mb-6">
-            <label className="block text-gray-700 text-sm font-bold mb-2">
-              Размер батча
-            </label>
-            <input
-              type="number"
-              className="shadow appearance-none border rounded w-full py-2 px-3 text-gray-700 leading-tight focus:outline-none focus:shadow-outline"
-              value={batchSize}
-              onChange={(e) => setBatchSize(e.target.value)}
-              placeholder="Введите размер батча"
-            />
-          </div>
-          <div className="mb-6">
-            <label className="block text-gray-700 text-sm font-bold mb-2">
-              Темп обучения
-            </label>
-            <input
-              type="number"
-              className="shadow appearance-none border rounded w-full py-2 px-3 text-gray-700 leading-tight focus:outline-none focus:shadow-outline"
-              value={learningRate}
-              onChange={(e) => setLearningRate(e.target.value)}
-              placeholder="Задайте темп обучения"
-            />
-          </div>
-
-          <div className="mb-6">
-            <label className="block text-gray-700 text-sm font-bold mb-2">
-              Коэффициент регуляризации
-            </label>
-            <input
-              type="number"
-              className="shadow appearance-none border rounded w-full py-2 px-3 text-gray-700 leading-tight focus:outline-none focus:shadow-outline"
-              value={weightDecay}
-              onChange={(e) => setWeightDecay(e.target.value)}
-              placeholder="Задайте коэффициент регуляризации"
-            />
-          </div>
-
-          <div className="mb-6">
-            <label className="block text-gray-700 text-sm font-bold mb-2">
-              Выберите монеты *
-            </label>
-            
-            <div className="mb-2">
-              <input
-                type="text"
-                placeholder="Поиск монет..."
-                className="shadow appearance-none border rounded w-full py-2 px-3 text-gray-700 leading-tight focus:outline-none focus:shadow-outline"
-                onChange={(e) => {
-                  const searchTerm = e.target.value.toLowerCase();
-                  const filtered = coins.filter(coin => 
-                    coin.name.toLowerCase().includes(searchTerm)
-                  );
-                  setFilteredCoins(filtered);
-                }}
-              />
-            </div>
-            
-            <div className="flex justify-between mb-2">
-              <div className="flex space-x-2">
-                <button
-                  type="button"
-                  className="text-xs bg-blue-500 hover:bg-blue-600 text-white py-1 px-2 rounded"
-                  onClick={() => setSelectedCoins(coins.map(coin => coin.id))}
+          {!isAgentNews && (
+             <>
+            <div className={`space-y-4 mb-6`}>
+              <div className="mb-6">
+                <label className="block text-gray-700 text-sm font-bold mb-2">
+                  Таймфреим модели *
+                </label>
+                <select
+                  className="shadow appearance-none border rounded w-full py-2 px-3 text-gray-700 leading-tight focus:outline-none focus:shadow-outline"
+                  value={selectedAgentTimeframe}
+                  onChange={(e) => setSelectedAgentTimeframe(e.target.value)}
                 >
-                  Выбрать все
-                </button>
-                <button
-                  type="button"
-                  className="text-xs bg-gray-500 hover:bg-gray-600 text-white py-1 px-2 rounded"
-                  onClick={() => setSelectedCoins([])}
-                >
-                  Снять выбор
-                </button>
+                  <option value="">Выберите таймфреим</option>
+                  {Timeframe.map((type) => (
+                    <option key={type.id} value={type.value}>{type.value}</option>
+                  ))}
+                </select>
               </div>
-              <span className="text-sm text-gray-500">
-                Выбрано: {selectedCoins.length}
-              </span>
-            </div>
-            
-            <div className="border border-gray-200 rounded p-2 max-h-40 overflow-y-auto">
-              {filteredCoins.map(coin => (
-                <div key={coin.id} className="flex items-center mb-2">
+              <div className="mb-6">
+                <label className="block text-gray-700 text-sm font-bold mb-2">
+                  Кол-во эпох
+                </label>
+                <input
+                  type="number"
+                  className="shadow appearance-none border rounded w-full py-2 px-3 text-gray-700 leading-tight focus:outline-none focus:shadow-outline"
+                  value={epochs}
+                  onChange={(e) => setEpochs(e.target.value)}
+                  placeholder="Введите кол-во эпох"
+                />
+              </div>
+              <div className="mb-6">
+                <label className="block text-gray-700 text-sm font-bold mb-2">
+                  Размер батча
+                </label>
+                <input
+                  type="number"
+                  className="shadow appearance-none border rounded w-full py-2 px-3 text-gray-700 leading-tight focus:outline-none focus:shadow-outline"
+                  value={batchSize}
+                  onChange={(e) => setBatchSize(e.target.value)}
+                  placeholder="Введите размер батча"
+                />
+              </div>
+              <div className="mb-6">
+                <label className="block text-gray-700 text-sm font-bold mb-2">
+                  Темп обучения
+                </label>
+                <input
+                  type="number"
+                  className="shadow appearance-none border rounded w-full py-2 px-3 text-gray-700 leading-tight focus:outline-none focus:shadow-outline"
+                  value={learningRate}
+                  onChange={(e) => setLearningRate(e.target.value)}
+                  placeholder="Задайте темп обучения"
+                />
+              </div>
+              <div className="mb-6">
+                <label className="block text-gray-700 text-sm font-bold mb-2">
+                  Коэффициент регуляризации
+                </label>
+                <input
+                  type="number"
+                  className="shadow appearance-none border rounded w-full py-2 px-3 text-gray-700 leading-tight focus:outline-none focus:shadow-outline"
+                  value={weightDecay}
+                  onChange={(e) => setWeightDecay(e.target.value)}
+                  placeholder="Задайте коэффициент регуляризации"
+                />
+              </div>
+              <div className="mb-6">
+                <label className="block text-gray-700 text-sm font-bold mb-2">
+                  Выберите монеты *
+                </label>
+                
+                <div className="mb-2">
                   <input
-                    type="checkbox"
-                    id={`coin-${coin.id}`}
-                    checked={selectedCoins.includes(coin.id)}
+                    type="text"
+                    placeholder="Поиск монет..."
+                    className="shadow appearance-none border rounded w-full py-2 px-3 text-gray-700 leading-tight focus:outline-none focus:shadow-outline"
                     onChange={(e) => {
-                      if (e.target.checked) {
-                        setSelectedCoins([...selectedCoins, coin.id]);
-                      } else {
-                        setSelectedCoins(selectedCoins.filter(id => id !== coin.id));
-                      }
+                      const searchTerm = e.target.value.toLowerCase();
+                      const filtered = coins.filter(coin => 
+                        coin.name.toLowerCase().includes(searchTerm)
+                      );
+                      setFilteredCoins(filtered);
                     }}
-                    className="h-4 w-4 text-blue-600 rounded focus:ring-blue-500"
                   />
-                  <label 
-                    htmlFor={`coin-${coin.id}`} 
-                    className="ml-2 text-sm text-gray-700 flex items-center"
-                  >
-                    <span className="font-medium">{coin.name}</span>
-                    {/* <span className="text-gray-500 ml-2">({coin.symbol})</span> */}
-                  </label>
                 </div>
-              ))}
+                
+                <div className="flex justify-between mb-2">
+                  <div className="flex space-x-2">
+                    <button
+                      type="button"
+                      className="text-xs bg-blue-500 hover:bg-blue-600 text-white py-1 px-2 rounded"
+                      onClick={() => setSelectedCoins(coins.map(coin => coin.id))}
+                    >
+                      Выбрать все
+                    </button>
+                    <button
+                      type="button"
+                      className="text-xs bg-gray-500 hover:bg-gray-600 text-white py-1 px-2 rounded"
+                      onClick={() => setSelectedCoins([])}
+                    >
+                      Снять выбор
+                    </button>
+                  </div>
+                  <span className="text-sm text-gray-500">
+                    Выбрано: {selectedCoins.length}
+                  </span>
+                </div>
+              </div>
+              <div className="border border-gray-200 rounded p-2 max-h-40 overflow-y-auto">
+                {filteredCoins.map(coin => (
+                  <div key={coin.id} className="flex items-center mb-2">
+                    <input
+                      type="checkbox"
+                      id={`coin-${coin.id}`}
+                      checked={selectedCoins.includes(coin.id)}
+                      onChange={(e) => {
+                        if (e.target.checked) {
+                          setSelectedCoins([...selectedCoins, coin.id]);
+                        } else {
+                          setSelectedCoins(selectedCoins.filter(id => id !== coin.id));
+                        }
+                      }}
+                      className="h-4 w-4 text-blue-600 rounded focus:ring-blue-500"
+                    />
+                    <label 
+                      htmlFor={`coin-${coin.id}`} 
+                      className="ml-2 text-sm text-gray-700 flex items-center"
+                    >
+                      <span className="font-medium">{coin.name}</span>
+                      {/* <span className="text-gray-500 ml-2">({coin.symbol})</span> */}
+                    </label>
+                  </div>
+                ))}
+              </div>
+              
+              {selectedCoins.length === 0 && (
+                <p className="text-red-500 text-sm mt-1">Необходимо выбрать хотя бы одну монету</p>
+              )}
             </div>
-            
-            {selectedCoins.length === 0 && (
-              <p className="text-red-500 text-sm mt-1">Необходимо выбрать хотя бы одну монету</p>
-            )}
-          </div>
+            </>
+          )}
 
+          {isAgentNews && (
+             <>
+            <div className={`space-y-4 mb-6`}>
+              <div className="mb-6">
+                <label className="block text-gray-700 text-sm font-bold mb-2">
+                  Кол-во эпох
+                </label>
+                <input
+                  type="number"
+                  className="shadow appearance-none border rounded w-full py-2 px-3 text-gray-700 leading-tight focus:outline-none focus:shadow-outline"
+                  value={epochs}
+                  onChange={(e) => setEpochs(e.target.value)}
+                  placeholder="Введите кол-во эпох"
+                />
+              </div>
+              <div className="mb-6">
+                <label className="block text-gray-700 text-sm font-bold mb-2">
+                  Размер батча
+                </label>
+                <input
+                  type="number"
+                  className="shadow appearance-none border rounded w-full py-2 px-3 text-gray-700 leading-tight focus:outline-none focus:shadow-outline"
+                  value={batchSize}
+                  onChange={(e) => setBatchSize(e.target.value)}
+                  placeholder="Введите размер батча"
+                />
+              </div>
+              <div className="mb-6">
+                <label className="block text-gray-700 text-sm font-bold mb-2">
+                  Темп обучения
+                </label>
+                <input
+                  type="number"
+                  className="shadow appearance-none border rounded w-full py-2 px-3 text-gray-700 leading-tight focus:outline-none focus:shadow-outline"
+                  value={learningRate}
+                  onChange={(e) => setLearningRate(e.target.value)}
+                  placeholder="Задайте темп обучения"
+                />
+              </div>
+              <div className="mb-6">
+                <label className="block text-gray-700 text-sm font-bold mb-2">
+                  Коэффициент регуляризации
+                </label>
+                <input
+                  type="number"
+                  className="shadow appearance-none border rounded w-full py-2 px-3 text-gray-700 leading-tight focus:outline-none focus:shadow-outline"
+                  value={weightDecay}
+                  onChange={(e) => setWeightDecay(e.target.value)}
+                  placeholder="Задайте коэффициент регуляризации"
+                />
+              </div>
+            </div>
+            </>
+          )}
+          
+          {!isAgentNews && (
           <div className="border-t border-gray-200 pt-4 mb-4">
             <div className="flex justify-between items-center mb-4">
               <h4 className="text-lg font-semibold text-gray-700">Дополнительные фичи</h4>
+              <div className="flex items-center space-x-4">
+                {/* Добавляем переключатель Random Features */}
+                <label className="flex items-center cursor-pointer">
+                  <span className="mr-2 text-sm font-medium text-gray-700">Random features</span>
+                  <div className="relative">
+                    <input
+                      type="checkbox"
+                      className="sr-only"
+                      checked={useRandomFeatures}
+                      onChange={() => setUseRandomFeatures(!useRandomFeatures)}
+                    />
+                    <div 
+                      className={`block w-10 h-6 rounded-full ${
+                        useRandomFeatures ? 'bg-green-500' : 'bg-gray-400'
+                      }`}
+                    ></div>
+                    <div 
+                      className={`absolute left-1 top-1 bg-white w-4 h-4 rounded-full transition-transform ${
+                        useRandomFeatures ? 'transform translate-x-4' : ''
+                      }`}
+                    ></div>
+                  </div>
+                </label>
               <button
                 type="button"
                 className="bg-blue-500 hover:bg-blue-600 text-white font-bold py-1 px-3 rounded flex items-center"
@@ -343,7 +439,8 @@ const TrainAgentModal = ({ isOpen, onClose, onAgentTrained }) => {
                 </svg>
                 Добавить
               </button>
-            </div>
+              </div>
+              </div>
 
             <div className="space-y-4 max-h-[300px] overflow-y-auto p-1">
               {features.map((feature) => (
@@ -363,6 +460,7 @@ const TrainAgentModal = ({ isOpen, onClose, onAgentTrained }) => {
 
                   <div className="mb-3">
                     <label className="block text-gray-700 text-sm mb-2">Выберите фичу</label>
+
                     <select
                       className="shadow appearance-none border rounded w-full py-2 px-3 text-gray-700 leading-tight focus:outline-none focus:shadow-outline"
                       value={feature.feature}
@@ -424,8 +522,9 @@ const TrainAgentModal = ({ isOpen, onClose, onAgentTrained }) => {
               )}
             </div>
           </div>
-        </div>
 
+          )}
+        </div>
         <div className="p-6 border-t border-gray-200">
           <div className="flex justify-end space-x-3">
             <button

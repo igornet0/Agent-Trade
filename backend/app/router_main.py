@@ -15,31 +15,19 @@ logger = logging.getLogger("app_fastapi.main")
 
 @router.get("/")
 async def read_root(request: Request):
-    return Server.templates.TemplateResponse(
-        "index.html",
-        {"request": request}
-    )
+    return RedirectResponse(url=f"{Server.frontend_url}/")
 
 @router.get("/team_page")
 async def read_root(request: Request):
-    return Server.templates.TemplateResponse(
-        "team.html",
-        {"request": request}
-    )
+    return RedirectResponse(url=f"{Server.frontend_url}/team_page")
 
 @router.get("/contact_page")
 async def read_root(request: Request):
-    return Server.templates.TemplateResponse(
-        "contact.html",
-        {"request": request}
-    )
+    return RedirectResponse(url=f"{Server.frontend_url}/contact_page")
 
 @router.get("/faq")
 async def read_root(request: Request):
-    return Server.templates.TemplateResponse(
-        "faq.html",
-        {"request": request}
-    )
+    return RedirectResponse(url=f"{Server.frontend_url}/faq")
 
 @router.get("/profile_page")
 async def read_root():
@@ -47,7 +35,4 @@ async def read_root():
 
 @router.get("/pricing_page")
 async def read_root(request: Request):
-    return Server.templates.TemplateResponse(
-        "pricing.html",
-        {"request": request}
-    )
+    return RedirectResponse(url=f"{Server.frontend_url}/pricing_page")

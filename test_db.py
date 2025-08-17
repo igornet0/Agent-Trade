@@ -19,11 +19,17 @@ async def main():
             for ts in timeseries:
                 result = await orm_get_data_timeseries(session, ts.id)
                 dt = DatasetTimeseries(result)
+                dt = dt.clear_dataset()
                 results[coin.name] = dt
                 # # print(len(result))
                 # results[coin.name] = len(result)
 
-    print(results)
+    # print(results)
+    for coin, dt in results.items():
+        print(coin)
+        print(len(dt))
+        print(len(dt.get_dataset_Nan()))
+        print("="*10)
 
 if __name__ == "__main__":
     asyncio.run(main())

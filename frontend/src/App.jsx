@@ -6,6 +6,11 @@ import RegisterPage from './pages/RegisterPage';
 import ProfilePage from './pages/ProfilePage';
 import spinner from './img/pageload-spinner.gif';
 import logo from './img/logo.webp';
+import LandingPage from './pages/marketing/LandingPage';
+import TeamPage from './pages/marketing/TeamPage';
+import ContactPage from './pages/marketing/ContactPage';
+import FaqPage from './pages/marketing/FaqPage';
+import PricingPage from './pages/marketing/PricingPage';
 
 const FullPageSpinner = () => (
   <div className="min-h-screen flex flex-col items-center justify-center bg-gradient-to-br from-blue-900 to-purple-900">
@@ -39,6 +44,13 @@ const App = () => {
   return (
     <Router>
       <Routes>
+        {/* Marketing site routes */}
+        <Route path="/" element={<LandingPage />} />
+        <Route path="/team_page" element={<TeamPage />} />
+        <Route path="/contact_page" element={<ContactPage />} />
+        <Route path="/faq" element={<FaqPage />} />
+        <Route path="/pricing_page" element={<PricingPage />} />
+
         <Route path="/profile_page" element={
           isAuthenticated 
             ? <ProfilePage user={user} onLogout={logout} /> 
@@ -57,9 +69,8 @@ const App = () => {
             : <Navigate to="/profile_page" />
         } />
         
-        <Route path="/" element={
-          <Navigate to={isAuthenticated ? "/profile_page" : "/login"} />
-        } />
+        {/* Fallback to marketing home */}
+        <Route path="*" element={<LandingPage />} />
       </Routes>
     </Router>
   );

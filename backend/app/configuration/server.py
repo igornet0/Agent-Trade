@@ -1,7 +1,6 @@
 import asyncio
 
 from fastapi import FastAPI
-from fastapi.templating import Jinja2Templates
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.security import OAuth2PasswordBearer, HTTPBearer
 from passlib.context import CryptContext
@@ -11,15 +10,17 @@ from typing import AsyncGenerator
 from backend.app.configuration.routers import Routers
 from core import settings
 from core.database import db_helper
+from backend.app.middleware.observability import ObservabilityMiddleware
 
 class Server:
 
     __app: FastAPI
 
-    templates = Jinja2Templates(directory="backend/app/front/templates")
+    # Legacy Jinja templates removed; frontend is served by Vite React app
     pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
     http_bearer = HTTPBearer(auto_error=False)
-    oauth2_scheme = OAuth2PasswordBearer(tokenUrl=settings.security.secret_key)
+    # Must point to the OAuth2 password flow token endpoint, not a secret key
+    oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/auth/login_user/")
     frontend_url = settings.run.frontend_url
 
     def __init__(self, app: FastAPI):
@@ -43,16 +44,10 @@ class Server:
 
     @staticmethod
     def __regist_middleware(app: FastAPI):
+        app.add_middleware(ObservabilityMiddleware)
         app.add_middleware(
             CORSMiddleware,
-            allow_origins=[
-                "http://localhost:5173",    # React по умолчанию
-                "https://localhost:5173",
-                "http://127.0.0.1:5173",    
-                "https://127.0.0.1:5173",    
-                "http://agent-trade.ru",
-                "https://agent-trade.ru"
-            ],
+            allow_origins=settings.run.allowed_origins,
             allow_credentials=True,
             allow_methods=["*"],
             allow_headers=["*"],

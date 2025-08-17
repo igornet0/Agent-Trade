@@ -161,11 +161,10 @@ class DataManager:
         base_path = self.required_dirs[data_type]
 
         for root, dirs, files in walk(base_path):
-            if not all(map(lambda x: ".csv" in x, files)):
+            if not any(map(lambda x: ".csv" in x, files)):
                 continue
 
-            for file in files:
-
+            for file in filter(lambda x: ".csv" in x, files):
                 if coin:
                     if not coin in file.replace("_", "-").split("-"):
                         continue

@@ -54,7 +54,7 @@ def create_app(
         redoc_url=None if create_custom_static_urls else "/redoc",
     )
 
-    app.mount("/static", StaticFiles(directory="backend/app/front/static"), name="static")
+    # Legacy static site removed; marketing frontend is now served by React Vite
 
     if create_custom_static_urls:
         register_static_docs_routes(app)

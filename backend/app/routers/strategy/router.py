@@ -1,28 +1,30 @@
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from core.database.orm_query import (Coin, User, Transaction, Portfolio, 
-                                     orm_get_coins,
-                                     orm_get_agents,
-                                     orm_get_models,
-                                     orm_get_transactions_by_id,
-                                     orm_get_user_transactions,
-                                     orm_get_user_coin_transactions,
-                                     orm_get_coin_portfolio)
+from core.database.orm_query import (
+    orm_get_coins,
+    orm_get_agents,
+    orm_get_models,
+)
+from core.database.models import Strategy, StrategyAgent, StrategyCoin
+from core.database.orm import (
+    orm_list_strategies_for_user,
+    orm_get_strategy_detail,
+    orm_delete_strategy,
+    validate_coins_exist,
+    validate_agents_exist,
+    is_strategy_name_taken,
+)
 
-from backend.app.configuration import (Server, 
-                                       AgentResponse,
-                                    #    ModelResponse,
-                                       CoinResponse,
-                                    #    CreateStrategyResponse,
-                                    #    StrategyResponse,
-                                       UserResponse,
-                                       OrderUpdateAmount,
-                                       OrderResponse,
-                                       OrderCreate,
-                                       OrderCancel,
-                                       OrderType,
-                                       verify_authorization)
+from backend.app.configuration import (
+    Server,
+    verify_authorization,
+)
+from backend.app.configuration.schemas.strategy import (
+    StrategyCreate,
+    StrategyResponse,
+    StrategyModelsUpdate,
+)
 
 # Инициализация роутера
 router = APIRouter(
@@ -61,52 +63,111 @@ router = APIRouter(
 #     except Exception as e:
 #         raise HTTPException(status_code=500, detail=f"Failed to get agents: {str(e)}")
 
-# @router.post("/create_strategy/", response_model=StrategyResponse)
-# async def create_strategy(strategy_data: CreateStrategyResponse, 
-#                        user: User = Depends(verify_authorization), 
-#                        db: AsyncSession = Depends(Server.get_db)):
-#     try:
-#         orders = await orm_get_user_coin_transactions(db, user.id, order_data.coin_id, 
-#                                                       status="!cancel",
-#                                                       type_order=order_data.type)
-#         if orders:
-#             raise HTTPException(status_code=400, detail="Order already exists")
+@router.post("/create", response_model=StrategyResponse)
+async def create_strategy(payload: StrategyCreate,
+                          user=Depends(verify_authorization),
+                          db: AsyncSession = Depends(Server.get_db)):
+    try:
+        # Validate uniqueness and references
+        if await is_strategy_name_taken(db, user.id, payload.name):
+            raise HTTPException(status_code=400, detail="Strategy name already exists")
+        missing_coins = await validate_coins_exist(db, payload.coins)
+        if missing_coins:
+            raise HTTPException(status_code=400, detail=f"Unknown coins: {missing_coins}")
+        missing_agents = await validate_agents_exist(db, payload.agents)
+        if missing_agents:
+            raise HTTPException(status_code=400, detail=f"Unknown agents: {missing_agents}")
+        st = Strategy(name=payload.name, user_id=user.id, type=payload.type,
+                      model_risk_id=payload.model_risk_id,
+                      model_order_id=payload.model_order_id,
+                      risk=payload.risk, reward=payload.reward)
+        db.add(st)
+        await db.flush()
+        for coin_id in payload.coins:
+            db.add(StrategyCoin(strategy_id=st.id, coin_id=coin_id))
+        for agent_id in payload.agents:
+            db.add(StrategyAgent(strategy_id=st.id, agent_id=agent_id))
+        await db.commit()
+        return StrategyResponse(id=st.id, name=st.name, type=st.type,
+                                risk=st.risk, reward=st.reward,
+                                coins=payload.coins, agents=payload.agents,
+                                model_risk_id=st.model_risk_id,
+                                model_order_id=st.model_order_id)
+    except Exception as e:
+        await db.rollback()
+        raise HTTPException(status_code=500, detail=f"Strategy create failed: {str(e)}")
 
-#         if order_data.type == OrderType.BUY:
-#             total_cost = order_data.amount * order_data.price
 
-#             if user.balance < total_cost:
-#                 raise HTTPException(status_code=400, detail=f"Insufficient funds {user.balance}")
-#             user.balance -= total_cost
+@router.get("/list", response_model=list[StrategyResponse])
+async def list_strategies(user=Depends(verify_authorization),
+                          db: AsyncSession = Depends(Server.get_db)):
+    strategies = await orm_list_strategies_for_user(db, user.id)
+    responses: list[StrategyResponse] = []
+    for st in strategies:
+        coins_rows = (await db.execute(StrategyCoin.__table__.select().where(StrategyCoin.strategy_id==st.id))).fetchall()
+        agents_rows = (await db.execute(StrategyAgent.__table__.select().where(StrategyAgent.strategy_id==st.id))).fetchall()
+        responses.append(StrategyResponse(
+            id=st.id, name=st.name, type=st.type,
+            risk=st.risk, reward=st.reward,
+            coins=[r.coin_id for r in coins_rows],
+            agents=[r.agent_id for r in agents_rows],
+            model_risk_id=st.model_risk_id,
+            model_order_id=st.model_order_id,
+        ))
+    return responses
 
-#         else:
-#             portfolio_item = await orm_get_coin_portfolio(db, user.id, order_data.coin_id)
 
-#             if not portfolio_item or portfolio_item.amount < order_data.amount:
-#                 raise HTTPException(status_code=400, detail="Insufficient assets")
-        
-#             # Блокируем активы
-#             portfolio_item.amount -= order_data.amount
+@router.get("/{strategy_id}", response_model=StrategyResponse)
+async def get_strategy(strategy_id: int,
+                       user=Depends(verify_authorization),
+                       db: AsyncSession = Depends(Server.get_db)):
+    st = await orm_get_strategy_detail(db, strategy_id, user.id)
+    if not st:
+        raise HTTPException(status_code=404, detail="Strategy not found")
+    coins_rows = (await db.execute(StrategyCoin.__table__.select().where(StrategyCoin.strategy_id==st.id))).fetchall()
+    agents_rows = (await db.execute(StrategyAgent.__table__.select().where(StrategyAgent.strategy_id==st.id))).fetchall()
+    return StrategyResponse(
+        id=st.id, name=st.name, type=st.type,
+        risk=st.risk, reward=st.reward,
+        coins=[r.coin_id for r in coins_rows],
+        agents=[r.agent_id for r in agents_rows],
+        model_risk_id=st.model_risk_id,
+        model_order_id=st.model_order_id,
+    )
 
-#         new_order = Transaction(
-#             user_id=user.id,
-#             coin_id=order_data.coin_id,
-#             type=order_data.type,
-#             amount_orig=order_data.amount,
-#             amount=order_data.amount,
-#             price=order_data.price,
-#         )
 
-#         db.add(new_order)
+@router.delete("/{strategy_id}")
+async def delete_strategy(strategy_id: int,
+                          user=Depends(verify_authorization),
+                          db: AsyncSession = Depends(Server.get_db)):
+    ok = await orm_delete_strategy(db, strategy_id, user.id)
+    if not ok:
+        raise HTTPException(status_code=404, detail="Strategy not found")
+    return {"message": "Strategy deleted"}
 
-#         await db.commit()  # Фиксируем изменения
-#         await db.refresh(new_order)  # Обновляем объект из БД
-
-#         return new_order
-    
-#     except Exception as e:
-#         await db.rollback()  # Откатываем при ошибке
-#         raise HTTPException(status_code=500, detail=f"Order creation failed: {str(e)}")
+@router.post("/{strategy_id}/models", response_model=StrategyResponse)
+async def update_strategy_models(strategy_id: int,
+                                 payload: StrategyModelsUpdate,
+                                 user=Depends(verify_authorization),
+                                 db: AsyncSession = Depends(Server.get_db)):
+    st = await db.get(Strategy, strategy_id)
+    if not st or st.user_id != user.id:
+        raise HTTPException(status_code=404, detail="Strategy not found")
+    try:
+        st.model_risk_id = payload.model_risk_id
+        st.model_order_id = payload.model_order_id
+        await db.commit()
+        coins_rows = (await db.execute(StrategyCoin.__table__.select().where(StrategyCoin.strategy_id==st.id))).fetchall()
+        agents_rows = (await db.execute(StrategyAgent.__table__.select().where(StrategyAgent.strategy_id==st.id))).fetchall()
+        return StrategyResponse(id=st.id, name=st.name, type=st.type,
+                                risk=st.risk, reward=st.reward,
+                                coins=[r.coin_id for r in coins_rows],
+                                agents=[r.agent_id for r in agents_rows],
+                                model_risk_id=st.model_risk_id,
+                                model_order_id=st.model_order_id)
+    except Exception as e:
+        await db.rollback()
+        raise HTTPException(status_code=500, detail=f"Strategy update failed: {str(e)}")
 
 # @router.post("/update_order_amount/", response_model=OrderResponse)
 # async def cancel_order(order_data: OrderUpdateAmount, 

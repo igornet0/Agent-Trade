@@ -11,7 +11,7 @@ from sqlalchemy.ext.asyncio import (
     async_sessionmaker
 )
 
-from core.database.models.main_models import Base
+from core.database.base import Base
 from core.settings import settings
 
 import logging
@@ -141,6 +141,11 @@ async def initialize_db_helper():
         max_overflow=settings.db.max_overflow
     )
 
-# Создаем экземпляр db_helper асинхронно
-loop = asyncio.get_event_loop()
-db_helper = loop.run_until_complete(initialize_db_helper())
+# Ленивая инициализация: устанавливается в lifespan
+db_helper: Database | None = None
+
+async def set_db_helper() -> Database:
+    global db_helper
+    if db_helper is None:
+        db_helper = await initialize_db_helper()
+    return db_helper

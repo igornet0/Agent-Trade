@@ -69,10 +69,11 @@ class AgentTrain(Base):
 
     id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True)
     agent_id: Mapped[int] = mapped_column(ForeignKey('agents.id'))
-
+    task_id: Mapped[str] = mapped_column(String, index=True)  # ID задачи Celery
     epochs: Mapped[int] = mapped_column(Integer, default=100)
     epoch_now: Mapped[int] = mapped_column(Integer, default=0)
     loss_now: Mapped[float] = mapped_column(Float, default=0)
+    loss_avg: Mapped[float] = mapped_column(Float, default=0)
     batch_size: Mapped[int] = mapped_column(Integer, default=64)
     learning_rate: Mapped[float] = mapped_column(Float, default=0.001)
     weight_decay: Mapped[float] = mapped_column(Float, default=0.001)

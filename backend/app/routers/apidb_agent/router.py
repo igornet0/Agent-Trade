@@ -17,7 +17,8 @@ from core.database.orm_query import (User, Agent, Transaction, Portfolio,
                                      orm_get_features,
                                      orm_get_user_transactions,
                                      orm_get_user_coin_transactions,
-                                     orm_get_coin_portfolio)
+                                     orm_get_coin_portfolio,
+                                     orm_set_active_version)
 
 from backend.app.configuration import (Server, 
                                        rabbit,
@@ -38,6 +39,9 @@ from backend.app.configuration import (Server,
                                        verify_authorization,
                                        verify_authorization_admin)
 
+from backend.celery_app.tasks import train_model_task
+from backend.celery_app.create_app import celery_app
+
 http_bearer = HTTPBearer(auto_error=False)
 
 # Инициализация роутера
@@ -53,6 +57,7 @@ async def create_agent_train(agent_data: AgentTrainResponse,
                        db: AsyncSession = Depends(Server.get_db)):
     try:
         agent = await orm_get_agent_by_name(db, agent_data.name)
+
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Agent failed: {str(e)}")
 
@@ -62,8 +67,15 @@ async def create_agent_train(agent_data: AgentTrainResponse,
     try:
         agent, train_data = await orm_add_agent(db, agent_data)
 
-        await rabbit.send_message("process_queue", {"id": train_data.id})
+        # Kick off async training task (align with your Celery backend/monitoring)
+        task = train_model_task.delay(agent_id=agent["id"])
 
+        # Persist task id to AgentTrain for monitoring
+        if train_data is not None:
+            train_data.task_id = task.id
+            await db.commit()
+
+        # Align with response_model: return created agent payload
         return agent
     except Exception as e:
         await db.rollback()  # Откатываем при ошибке
@@ -194,3 +206,55 @@ async def rabbitmq_health():
         return {"status": "up"}
     except Exception as e:
         return {"status": "down", "detail": str(e)}
+
+
+@router.get("/train_status/{agent_id}")
+async def get_train_status(agent_id: int,
+                           _: User = Depends(verify_authorization_admin),
+                           db: AsyncSession = Depends(Server.get_db)):
+    trains = await orm_get_train_agent(db, agent_id)
+    if not trains:
+        raise HTTPException(status_code=404, detail="Train not found")
+    train = trains[0]
+    coins = [c.coin_id for c in (await db.execute(TrainCoin.__table__.select().where(TrainCoin.train_id==train.id))).fetchall()]
+    return {
+        "id": train.id,
+        "agent_id": train.agent_id,
+        "epochs": train.epochs,
+        "epoch_now": train.epoch_now,
+        "loss_now": train.loss_now,
+        "loss_avg": train.loss_avg,
+        "batch_size": train.batch_size,
+        "learning_rate": train.learning_rate,
+        "weight_decay": train.weight_decay,
+        "status": train.status,
+        "task_id": train.task_id,
+        "coins": coins,
+    }
+
+
+@router.get("/task_status/{task_id}")
+async def get_task_status(task_id: str,
+                          _: User = Depends(verify_authorization_admin)):
+    result = celery_app.AsyncResult(task_id)
+    meta = result.info if isinstance(result.info, dict) else {"detail": str(result.info)}
+    return {
+        "task_id": task_id,
+        "state": result.state,
+        "meta": meta,
+        "ready": result.ready(),
+        "successful": result.successful() if result.ready() else False,
+    }
+
+
+@router.post("/agents/{agent_id}/promote")
+async def promote_agent(agent_id: int,
+                        _: User = Depends(verify_authorization_admin),
+                        db: AsyncSession = Depends(Server.get_db)):
+    try:
+        await orm_set_active_version(db, agent_id)
+        return {"message": "Agent version promoted", "agent_id": agent_id}
+    except HTTPException as e:
+        raise e
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Promote failed: {str(e)}")

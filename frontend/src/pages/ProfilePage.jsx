@@ -1,252 +1,85 @@
-import React, { useState, useRef, useEffect } from 'react';
-import { 
-  CategoryScale, 
-  LinearScale, 
-  PointElement, 
-  LineElement, 
-  Title, 
-  Tooltip, 
-  Legend,
-  ArcElement,
-  Filler
-} from 'chart.js';
-import { Chart as ChartJS } from 'chart.js';
+import React from 'react';
 
-import ProfileSidebar from '../components/profile/ProfileSidebar';
-import UserGreeting from '../components/profile/UserGreeting';
-import ProfileTabContent from '../components/profile/ProfileTabContent';
-import FinanceTabContent from '../components/profile/FinanceTabContent';
-import FinancialActivity from '../components/profile/FinancialActivity';
-import ChatList from '../components/profile/ChatList';
-import AgentsTabContent from '../components/profile/AgentsTabContent';
-import StrategyTabContent from '../components/profile/StrategyTabContent';
-import CoinsTabContent from '../components/profile/CoinsTabContent';
-import ModelsTabContent from '../components/profile/ModelsTabContent';
-import StrategyTable from '../components/profile/StrategyTable';
-
-// Регистрация компонентов Chart.js
-ChartJS.register(
-  CategoryScale, 
-  LinearScale, 
-  PointElement, 
-  LineElement, 
-  Title, 
-  Tooltip, 
-  Legend,
-  ArcElement,
-  Filler
-);
-
-const ProfilePage = ({ user, onLogout }) => {
-  const [activeTab, setActiveTab] = useState('profile');
-  const [assetsData, setAssetsData] = useState(null);
-  const chartRef = useRef(null);
-  const [chartData, setChartData] = useState({ labels: [], datasets: [] });
-  
-  // Генерация данных для графика
-  // useEffect(() => {
-  //   // Данные для графика баланса
-  //   const labels = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
-    
-  //   // Фактические данные
-  //   const actualData = Array(6).fill(null)
-  //     .map((_, i) => 10000 - 100 + i * 550)
-  //     .concat(Array(6).fill(null));
-    
-  //   // Прогнозируемые данные
-  //   const forecastData = Array(6).fill(null)
-  //     .concat(Array(6).fill(null)
-  //     .map((_, i) => 13000 + (i + 1) * 1800));
-    
-  //   // Данные для распределения активов
-  //   setAssetsData({
-  //     crypto: Math.floor(Math.random() * 80),
-  //     cash: Math.floor(Math.random() * 20),
-  //   });
-    
-  //   // Настройка градиента для графика
-  //   if (chartRef.current) {
-  //     const ctx = chartRef.current.ctx;
-  //     const gradient = ctx.createLinearGradient(0, 0, 0, 400);
-  //     gradient.addColorStop(0, 'rgba(79, 70, 229, 0.6)');
-  //     gradient.addColorStop(1, 'rgba(79, 70, 229, 0.05)');
-      
-  //     setChartData({
-  //       labels,
-  //       datasets: [
-  //         {
-  //           label: 'Actual Balance',
-  //           data: actualData,
-  //           borderColor: 'rgb(79, 70, 229)',
-  //           backgroundColor: gradient,
-  //           pointBackgroundColor: 'rgb(79, 70, 229)',
-  //           pointBorderColor: '#fff',
-  //           pointHoverBackgroundColor: '#fff',
-  //           pointHoverBorderColor: 'rgb(79, 70, 229)',
-  //           tension: 0.4,
-  //           fill: true,
-  //         },
-  //         {
-  //           label: 'Forecast',
-  //           data: forecastData,
-  //           borderColor: 'rgb(14, 165, 233)',
-  //           backgroundColor: 'rgba(14, 165, 233, 0.05)',
-  //           borderDash: [5, 5],
-  //           pointBackgroundColor: 'rgb(14, 165, 233)',
-  //           pointBorderColor: '#fff',
-  //           pointHoverBackgroundColor: '#fff',
-  //           pointHoverBorderColor: 'rgb(14, 165, 233)',
-  //           tension: 0.4,
-  //           fill: true,
-  //         }
-  //       ]
-  //     });
-  //   }
-  // }, [user.balance]);
-
-  // Настройки графика баланса
-  // const chartOptions = {
-  //   responsive: true,
-  //   maintainAspectRatio: false,
-  //   plugins: {
-  //     legend: {
-  //       display: false
-  //     },
-  //     tooltip: {
-  //       backgroundColor: 'rgba(0, 0, 0, 0.8)',
-  //       padding: 12,
-  //       titleFont: {
-  //         size: 14,
-  //         weight: 'bold'
-  //       },
-  //       bodyFont: {
-  //         size: 13
-  //       },
-  //       callbacks: {
-  //         label: function(context) {
-  //           const datasetLabel = context.dataset.label || '';
-  //           const value = context.parsed.y || 0;
-  //           let label = `${datasetLabel}: $${value.toFixed(2)}`;
-            
-  //           if (datasetLabel === 'Forecast') {
-  //             const change = ((value - user.balance) / user.balance * 100).toFixed(2);
-  //             label += ` (${change}%)`;
-  //           }
-            
-  //           return label;
-  //         },
-  //         afterLabel: function(context) {
-  //           if (context.datasetIndex === 1) {
-  //             return 'Projected growth based on current trends';
-  //           }
-  //           return null;
-  //         }
-  //       }
-  //     }
-  //   },
-  //   scales: {
-  //     x: {
-  //       grid: {
-  //         display: false
-  //       }
-  //     },
-  //     y: {
-  //       grid: {
-  //         color: 'rgba(0, 0, 0, 0.05)'
-  //       },
-  //       ticks: {
-  //         callback: function(value) {
-  //           return '$' + value;
-  //         }
-  //       }
-  //     }
-  //   },
-  //   interaction: {
-  //     mode: 'index',
-  //     intersect: false,
-  //   },
-  //   hover: {
-  //     mode: 'index',
-  //     intersect: false
-  //   }
-  // };
-
-  // Данные для круговой диаграммы активов
-
-  // const assetsChartOptions = {
-  //   responsive: true,
-  //   maintainAspectRatio: false,
-  //   plugins: {
-  //     legend: {
-  //       position: 'right',
-  //       labels: {
-  //         boxWidth: 12,
-  //         padding: 16,
-  //         font: {
-  //           size: 12
-  //         }
-  //       }
-  //     },
-  //     tooltip: {
-  //       callbacks: {
-  //         label: function(context) {
-  //           const label = context.label || '';
-  //           const value = context.parsed || 0;
-  //           const percentage = Math.round(value);
-  //           return `${label}: ${percentage}%`;
-  //         }
-  //       }
-  //     }
-  //   },
-  //   cutout: '70%',
-  // };
-
-  // Данные для финансовой активности
-  const financialActivity = [
-    { type: 'EXPENSE', amount: 1240, description: 'Buy BTC', date: 'TODAY, 15:30' },
-    { type: 'INCOME', amount: 500, description: 'Sell ETH', date: 'TODAY, 00:00' },
-    { type: 'TRANSFER', amount: 100, description: 'Add balance', date: 'YESTERDAY, 00:00' },
-    { type: 'INCOME', amount: 1870, description: 'Sell XMR', date: 'JUN 02, 16:15' },
+const ProfileSidebar = ({ activeTab, setActiveTab, onLogout }) => {
+  const navItems = [
+    { key: 'profile', label: 'Профиль', icon: (
+      <svg className="w-5 h-5 mb-1" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+        <path strokeLinecap="round" strokeLinejoin="round" d="M5.121 17.804A13.937 13.937 0 0112 15c2.485 0 4.847.636 6.879 1.804M15 11a3 3 0 11-6 0 3 3 0 016 0z"></path>
+        <path strokeLinecap="round" strokeLinejoin="round" d="M12 14c-4.418 0-8 1.79-8 4v1h16v-1c0-2.21-3.582-4-8-4z"></path>
+      </svg>
+    ) },
+    { key: 'finance', label: 'Финансы', icon: (
+      <svg className="w-5 h-5 mb-1" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+        <path strokeLinecap="round" strokeLinejoin="round" d="M12 8c-1.657 0-3 1.343-3 3s1.343 3 3 3 3-1.343 3-3-1.343-3-3-3z"></path>
+        <path strokeLinecap="round" strokeLinejoin="round" d="M12 1v3m0 16v3m8.485-10.485l-2.121-2.121M5.636 18.364l-2.121-2.121M21 12h-3M6 12H3m15.364 5.364l-2.121 2.121M7.757 5.636L5.636 3.515"></path>
+      </svg>
+    ) },
+    { key: 'agents', label: 'Агенты', icon: (
+      <svg className="w-5 h-5 mb-1" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+        <path strokeLinecap="round" strokeLinejoin="round" d="M17 20h5v-2a4 4 0 00-3-3.87"></path>
+        <path strokeLinecap="round" strokeLinejoin="round" d="M9 20H4v-2a4 4 0 013-3.87"></path>
+        <circle cx="12" cy="7" r="4" strokeLinecap="round" strokeLinejoin="round"></circle>
+      </svg>
+    ) },
+    { key: 'models', label: 'Модели', icon: (
+      <svg className="w-5 h-5 mb-1" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+        <rect width="14" height="14" x="5" y="5" rx="2" ry="2"></rect>
+        <path strokeLinecap="round" strokeLinejoin="round" d="M5 10h14"></path>
+        <path strokeLinecap="round" strokeLinejoin="round" d="M10 5v14"></path>
+      </svg>
+    ) },
+    { key: 'strategy', label: 'Стратегия', icon: (
+      <svg className="w-5 h-5 mb-1" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+        <path strokeLinecap="round" strokeLinejoin="round" d="M3 7v4a1 1 0 001 1h3v3a1 1 0 001 1h4"></path>
+        <path strokeLinecap="round" strokeLinejoin="round" d="M21 3l-6 6"></path>
+        <path strokeLinecap="round" strokeLinejoin="round" d="M14 3h7v7"></path>
+      </svg>
+    ) },
+    { key: 'strategys', label: 'Таблица', icon: (
+      <svg className="w-5 h-5 mb-1" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+        <rect x="3" y="4" width="18" height="4" rx="1"></rect>
+        <rect x="3" y="10" width="18" height="4" rx="1"></rect>
+        <rect x="3" y="16" width="18" height="4" rx="1"></rect>
+      </svg>
+    ) },
+    { key: 'coins', label: 'Монеты', icon: (
+      <svg className="w-5 h-5 mb-1" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+        <circle cx="12" cy="12" r="10"></circle>
+        <path strokeLinecap="round" strokeLinejoin="round" d="M12 6v6l4 2"></path>
+      </svg>
+    ) },
   ];
 
   return (
-    <div className="min-h-screen bg-gray-100 flex">
-      <ProfileSidebar 
-          activeTab={activeTab} 
-          setActiveTab={setActiveTab} 
-          onLogout={onLogout} 
-      />
-
-      <div className="flex-1 p-8 overflow-auto">
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-          {activeTab === 'profile' && (
-              <UserGreeting user={user} />
-            )}
-          
-          {activeTab === 'profile' && <ProfileTabContent user={user} />}
-          
-          {activeTab === 'finance' && (
-            <FinanceTabContent 
-              user={user}
-            />
-          )}
-
-           {activeTab === 'agents' && <AgentsTabContent />}
-           {activeTab === 'models' && <ModelsTabContent />}
-           {activeTab === 'strategy' && <StrategyTabContent />}
-           {activeTab === 'strategys' && <StrategyTable />}
-           {activeTab === 'coins' && <CoinsTabContent />}
-
-           {(activeTab === 'finance' || activeTab === 'coins') && (
-              <>
-                <FinancialActivity activities={financialActivity} />
-                <ChatList />
-              </>
-            )}
-        </div>
+    <div className="w-20 bg-[#141e1b] flex flex-col items-center pt-4">
+      <div className="mb-8">
+        <div className="text-4xl text-[#00ff75]">🔷</div>
+      </div>
+      {navItems.map(({ key, label, icon }) => (
+        <button
+          key={key}
+          onClick={() => setActiveTab(key)}
+          className={`w-16 h-16 bg-[#00ff75] rounded-[30%] flex flex-col items-center justify-center my-2 text-black ${
+            activeTab === key ? 'ring-2 ring-white' : ''
+          }`}
+          title={label}
+        >
+          {icon}
+          <span className="text-xs">{label}</span>
+        </button>
+      ))}
+      <div className="mt-auto mb-4">
+        <button
+          onClick={onLogout}
+          className="w-16 h-16 bg-[#00ff75] rounded-[30%] flex flex-col items-center justify-center my-2 text-black"
+          title="Выход"
+        >
+          <span className="mb-1 text-2xl">🚪</span>
+          <span className="text-xs">Выход</span>
+        </button>
       </div>
     </div>
   );
 };
 
-export default ProfilePage;
+export default ProfileSidebar;

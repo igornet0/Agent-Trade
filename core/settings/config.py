@@ -30,6 +30,16 @@ class RunConfig(BaseSettings):
 
     frontend_host: str = Field(default="localhost")
     frontend_port: int = Field(default=5173)
+    allowed_origins: list[str] = Field(
+        default=[
+            "http://localhost:5173",
+            "https://localhost:5173",
+            "http://127.0.0.1:5173",
+            "https://127.0.0.1:5173",
+            "http://agent-trade.ru",
+            "https://agent-trade.ru",
+        ]
+    )
 
     @property
     def frontend_url(self):
@@ -104,6 +114,7 @@ class SecurityCongig(BaseSettings):
     secret_key: str = Field(default=...)
     refresh_secret_key: str = Field(default=...)
     algorithm: str = Field(default="RS256")
+    refresh_algorithm: str = Field(default="HS256")
 
     access_token_expire_minutes: int = Field(default=120)
     refresh_token_expire_days:int = Field(default=7)
