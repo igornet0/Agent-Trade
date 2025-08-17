@@ -32,8 +32,12 @@ class Indicators:
         required_columns = ['datetime', 'open', 'max', 'min', 'close', 'volume']
         if not all(col in data.columns for col in required_columns):
             raise ValueError("DataFrame must contain all required columns")
-        
-        return data.sort_values('datetime')
+
+        df = data.copy()
+        # Гарантируем тип datetime для корректной работы группировок (VWAP и т.п.)
+        if not pd.api.types.is_datetime64_any_dtype(df['datetime']):
+            df['datetime'] = pd.to_datetime(df['datetime'], errors='coerce')
+        return df.sort_values('datetime')
     
     @staticmethod
     def sma(data: pd.DataFrame, period=14, column='close'):

@@ -59,15 +59,24 @@ class BatchGenerator:
                         s_e2 = np.asarray(s_e2)
                     else:
                         continue
-                    try:
-                        x_list.append(np.asarray(s_x))
-                        y_list.append(np.asarray(s_y))
-                        if s_e1 is not None:
-                            extra1_list.append(np.asarray(s_e1))
-                        if s_e2 is not None:
-                            extra2_list.append(np.asarray(s_e2))
-                    except Exception:
-                        continue
+                    # Сжимаем 1D для y (pred_len,), оставляя 2D где нужно
+                    sx = np.asarray(s_x)
+                    sy = np.asarray(s_y)
+                    se1 = None if s_e1 is None else np.asarray(s_e1)
+                    se2 = None if s_e2 is None else np.asarray(s_e2)
+
+                    # y может быть Series/DataFrame — приведём к 1D
+                    if sy.ndim > 1 and sy.shape[0] == 1:
+                        sy = sy.reshape(-1)
+                    if sy.ndim == 2 and sy.shape[1] == 1:
+                        sy = sy[:, 0]
+
+                    x_list.append(sx)
+                    y_list.append(sy)
+                    if se1 is not None:
+                        extra1_list.append(se1)
+                    if se2 is not None:
+                        extra2_list.append(se2)
 
                     if len(x_list) >= self.batch_size:
                         x = torch.as_tensor(np.stack(x_list[: self.batch_size]), dtype=torch.float32)

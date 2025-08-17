@@ -98,6 +98,13 @@ class AgentPredTime(Agent):
 
         data, y, time_features = self.preprocess_data_for_model(data)
 
+        # y может быть DataFrame c колонками; гарантируем 1D предикт цели по close
+        if isinstance(y, pd.DataFrame):
+            if 'close' in y.columns:
+                y = y['close'].values
+            else:
+                y = y.iloc[:, 0].values
+
         n_samples = data.shape[0]
 
         for i in range(n_samples - pred_len - seq_len):
