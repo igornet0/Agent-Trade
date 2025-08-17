@@ -145,22 +145,37 @@ with st.sidebar:
     # Индикаторы для Pred/Trade
     st.subheader("Индикаторы")
     indicator_names = list(Indicators.indicators_input.keys())
-    selected_inds = st.multiselect("Выберите индикаторы", options=indicator_names, default=["SMA", "EMA"])
+    selected_inds = st.multiselect("Выберите индикаторы", options=indicator_names, default=["SMA", "EMA"], key="inds_select")
+
+    # Возможность добавить один и тот же индикатор несколько раз
+    add_slots = st.slider("Сколько экземпляров индикаторов настроить", 1, 5, 2, 1, key="inds_slots")
+
     indecaters_cfg: dict[str, dict] = {}
     if selected_inds:
-        for name in selected_inds:
-            args = Indicators.indicators_input.get(name, {})
-            with st.expander(f"{name} параметры"):
-                cfg = {}
-                for arg, arg_type in args.items():
-                    key = f"{name}_{arg}"
-                    if arg_type == "int":
-                        cfg[arg] = st.number_input(f"{name}.{arg}", min_value=1, max_value=500, value=14, step=1, key=key)
-                    elif arg_type == "str":
-                        cfg[arg] = st.selectbox(f"{name}.{arg}", options=["close", "open", "max", "min", "volume"], index=0, key=key)
-                    else:
-                        cfg[arg] = st.text_input(f"{name}.{arg}", value="", key=key)
-                indecaters_cfg[name] = cfg
+        import random
+        col_btn1, col_btn2 = st.columns([1, 2])
+        with col_btn1:
+            randomize = st.button("🎲 Случайные параметры", help="Заполнить параметры индикаторов случайными значениями")
+        with col_btn2:
+            st.caption("Можно добавлять одинаковые индикаторы с разными параметрами")
+
+        for idx in range(add_slots):
+            for name in selected_inds:
+                args = Indicators.indicators_input.get(name, {})
+                uid = f"{name}#{idx+1}"
+                with st.expander(f"{uid} параметры"):
+                    cfg = {}
+                    for arg, arg_type in args.items():
+                        key = f"{uid}_{arg}"
+                        if arg_type == "int":
+                            default_val = random.randint(2, 60) if randomize else 14
+                            cfg[arg] = st.number_input(f"{uid}.{arg}", min_value=1, max_value=500, value=default_val, step=1, key=key)
+                        elif arg_type == "str":
+                            default_str = random.choice(["close", "open", "max", "min", "volume"]) if randomize else "close"
+                            cfg[arg] = st.selectbox(f"{uid}.{arg}", options=["close", "open", "max", "min", "volume"], index=["close", "open", "max", "min", "volume"].index(default_str), key=key)
+                        else:
+                            cfg[arg] = st.text_input(f"{uid}.{arg}", value="", key=key)
+                    indecaters_cfg[uid] = cfg
 
     # Специфичные параметры для AgentTradeTime
     trade_params = {}

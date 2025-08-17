@@ -121,7 +121,8 @@ class Agent:
     def get_indecaters_column(self) -> List[str]:
         column_output = []
         for indecater_name, params in self.get_indecaters().items():
-            indecater = Indicators.collumns_shape.get(indecater_name)
+            base_name = indecater_name.split('#', 1)[0]
+            indecater = Indicators.collumns_shape.get(base_name)
             collumn = Indicators.paser_collumn_name(indecater, **params)
             
             if isinstance(collumn, list):
@@ -134,7 +135,8 @@ class Agent:
     def get_indecaters_dict(self) -> Dict[str, Union[List, str]]:
         column_output = {}
         for indecater_name, params in self.get_indecaters().items():
-            indecater = Indicators.collumns_shape.get(indecater_name)
+            base_name = indecater_name.split('#', 1)[0]
+            indecater = Indicators.collumns_shape.get(base_name)
             collumn = Indicators.paser_collumn_name(indecater, **params)
             
             column_output[indecater_name] = collumn
@@ -176,7 +178,8 @@ class Agent:
     def get_shape_indecaters(self) -> Dict[str, int]:
         shapes = {}
         for indecater_name, _ in self.indecaters.items():
-            shapes[indecater_name] = Indicators.get_shape(indecater_name)
+            base_name = indecater_name.split('#', 1)[0]
+            shapes[indecater_name] = Indicators.get_shape(base_name)
 
         return shapes
     
@@ -272,7 +275,8 @@ class Agent:
     def normalize_data(self, data: pd.DataFrame) -> pd.DataFrame:
 
         for indecater_name, params in self.get_indecaters().items():
-            data = Indicators.calculate_normalized(indecater_name, data.copy(), **params)
+            base_name = indecater_name.split('#', 1)[0]
+            data = Indicators.calculate_normalized(base_name, data.copy(), **params)
 
         data['close'] = (data['close'] - data['open']) / data['open'] * 100
         data['max'] = (data['max'] - data['open']) / data['open'] * 100
@@ -286,7 +290,8 @@ class Agent:
 
         new_data = data.copy()
         for indecater_name, params in self.get_indecaters().items():
-            new_data = Indicators.calculate(indecater_name, new_data, **params)
+            base_name = indecater_name.split('#', 1)[0]
+            new_data = Indicators.calculate(base_name, new_data, **params)
 
         if self.data_normalize:
             new_data = self.normalize_data(new_data)
