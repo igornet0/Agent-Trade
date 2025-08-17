@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { listModels, getTaskStatus } from '../services/mlService';
 import { get_coins } from '../services/strategyService';
+import TaskProgressWidget from '../components/profile/TaskProgressWidget';
 
 const MLStudioPage = () => {
   const [models, setModels] = useState([]);
@@ -58,6 +59,18 @@ const MLStudioPage = () => {
     setActiveTasks(prev => new Map(prev.set(taskId, { state: 'PENDING', ready: false })));
   };
 
+  const handleTaskComplete = (taskData) => {
+    console.log('Task completed:', taskData);
+    // Task will be automatically removed from activeTasks
+    // Models list will be refreshed
+  };
+
+  const handleTaskError = (taskData) => {
+    console.error('Task failed:', taskData);
+    // Task will be automatically removed from activeTasks
+    // Models list will be refreshed
+  };
+
   const getModelTypeLabel = (type) => {
     const typeMap = {
       'AgentNews': 'News',
@@ -97,28 +110,15 @@ const MLStudioPage = () => {
         {activeTasks.size > 0 && (
           <div className="mb-8 bg-white rounded-lg shadow p-6">
             <h2 className="text-xl font-semibold text-gray-900 mb-4">Активные задачи</h2>
-            <div className="space-y-3">
+            <div className="space-y-4">
               {Array.from(activeTasks.entries()).map(([taskId, task]) => (
-                <div key={taskId} className="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
-                  <div className="flex items-center space-x-3">
-                    <div className="w-3 h-3 bg-blue-500 rounded-full animate-pulse"></div>
-                    <span className="text-sm font-medium text-gray-700">Task {taskId}</span>
-                    <span className={`px-2 py-1 text-xs rounded-full ${getStatusColor(task.state?.toLowerCase())}`}>
-                      {task.state || 'PENDING'}
-                    </span>
-                  </div>
-                  {task.meta?.progress && (
-                    <div className="flex items-center space-x-2">
-                      <div className="w-32 bg-gray-200 rounded-full h-2">
-                        <div 
-                          className="bg-blue-600 h-2 rounded-full transition-all duration-300"
-                          style={{ width: `${task.meta.progress}%` }}
-                        ></div>
-                      </div>
-                      <span className="text-sm text-gray-600">{task.meta.progress}%</span>
-                    </div>
-                  )}
-                </div>
+                <TaskProgressWidget
+                  key={taskId}
+                  taskId={taskId}
+                  onComplete={handleTaskComplete}
+                  onError={handleTaskError}
+                  autoStart={true}
+                />
               ))}
             </div>
           </div>
