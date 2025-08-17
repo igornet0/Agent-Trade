@@ -1,6 +1,7 @@
 # модели для БД
 from typing import Literal, List
 from sqlalchemy import ForeignKey, Float, String, Integer
+from sqlalchemy import JSON as SA_JSON
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from core.database.base import Base
@@ -77,6 +78,11 @@ class AgentTrain(Base):
     batch_size: Mapped[int] = mapped_column(Integer, default=64)
     learning_rate: Mapped[float] = mapped_column(Float, default=0.001)
     weight_decay: Mapped[float] = mapped_column(Float, default=0.001)
+
+    # Stage 1: unified training contract support
+    extra_config: Mapped[dict | None] = mapped_column(SA_JSON, nullable=True)
+    metrics: Mapped[dict | None] = mapped_column(SA_JSON, nullable=True)
+    artifact_path: Mapped[str | None] = mapped_column(String(255), nullable=True)
 
     status: Mapped[str] = mapped_column(String(20), default="start")
 
