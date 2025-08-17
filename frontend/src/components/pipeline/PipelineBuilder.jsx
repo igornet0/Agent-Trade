@@ -25,6 +25,11 @@ export default function PipelineBuilder() {
   const [newEdgeSource, setNewEdgeSource] = useState('data');
   const [newEdgeTarget, setNewEdgeTarget] = useState('pred');
 
+  // Selection / right panel editor
+  const [selectedNodeId, setSelectedNodeId] = useState(null);
+  const [selectedNodeType, setSelectedNodeType] = useState('DataSource');
+  const [selectedNodeConfig, setSelectedNodeConfig] = useState('{}');
+
   useEffect(() => {
     if (!taskId) return;
     let timer;
@@ -88,6 +93,25 @@ export default function PipelineBuilder() {
     }));
   }, []);
   const onEdgesChange = useCallback(() => {}, []);
+  const onNodeClick = useCallback((_, node) => {
+    setSelectedNodeId(node.id);
+    setSelectedNodeType(node.type);
+    const cfg = node.data?.config || {};
+    setSelectedNodeConfig(JSON.stringify(cfg, null, 2));
+  }, []);
+
+  const onUpdateSelectedNode = () => {
+    if (!selectedNodeId) return;
+    let parsed = {};
+    try { parsed = selectedNodeConfig ? JSON.parse(selectedNodeConfig) : {}; } catch { return alert('config должен быть валидным JSON'); }
+    setNodes(prev => prev.map(n => n.id === selectedNodeId ? { ...n, type: selectedNodeType, data: { ...n.data, label: selectedNodeType, config: parsed } } : n));
+    alert('Узел обновлён');
+  };
+  const onDeleteSelectedNode = () => {
+    if (!selectedNodeId) return;
+    onRemoveNode(selectedNodeId);
+    setSelectedNodeId(null);
+  };
 
   return (
     <div className="lg:col-span-3">
@@ -118,87 +142,116 @@ export default function PipelineBuilder() {
 
         <div className="bg-gray-50 p-4 rounded-lg space-y-4">
           <div className="h-[400px] w-full rounded border overflow-hidden">
-            <ReactFlow nodes={nodes} edges={edges} onConnect={onConnect} onNodesChange={onNodesChange} onEdgesChange={onEdgesChange} fitView>
+            <ReactFlow nodes={nodes} edges={edges} onConnect={onConnect} onNodesChange={onNodesChange} onEdgesChange={onEdgesChange} onNodeClick={onNodeClick} fitView>
               <MiniMap />
               <Controls />
               <Background />
             </ReactFlow>
           </div>
-          <div>
-            <div className="text-sm font-medium text-gray-800 mb-2">Добавить узел</div>
-            <div className="grid grid-cols-1 md:grid-cols-4 gap-3">
-              <input value={newNodeId} onChange={(e)=>setNewNodeId(e.target.value)} className="p-3 border rounded" placeholder="id (например, ind1)" />
-              <select value={newNodeType} onChange={(e)=>setNewNodeType(e.target.value)} className="p-3 border rounded">
-                {NODE_TYPES.map(t => <option key={t} value={t}>{t}</option>)}
-              </select>
-              <input value={newNodeConfig} onChange={(e)=>setNewNodeConfig(e.target.value)} className="p-3 border rounded" placeholder='{"key":"value"}' />
-              <button onClick={onAddNode} className="px-4 py-2 rounded bg-emerald-600 text-white">Добавить узел</button>
-            </div>
-          </div>
+          <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+            <div className="lg:col-span-2 space-y-4">
+              <div>
+                <div className="text-sm font-medium text-gray-800 mb-2">Добавить узел</div>
+                <div className="grid grid-cols-1 md:grid-cols-4 gap-3">
+                  <input value={newNodeId} onChange={(e)=>setNewNodeId(e.target.value)} className="p-3 border rounded" placeholder="id (например, ind1)" />
+                  <select value={newNodeType} onChange={(e)=>setNewNodeType(e.target.value)} className="p-3 border rounded">
+                    {NODE_TYPES.map(t => <option key={t} value={t}>{t}</option>)}
+                  </select>
+                  <input value={newNodeConfig} onChange={(e)=>setNewNodeConfig(e.target.value)} className="p-3 border rounded" placeholder='{"key":"value"}' />
+                  <button onClick={onAddNode} className="px-4 py-2 rounded bg-emerald-600 text-white">Добавить узел</button>
+                </div>
+              </div>
 
-          <div>
-            <div className="text-sm font-medium text-gray-800 mb-2">Список узлов</div>
-            <div className="overflow-x-auto">
-              <table className="min-w-full text-xs border rounded">
-                <thead className="bg-gray-100">
-                  <tr>
-                    <th className="px-2 py-1 text-left">id</th>
-                    <th className="px-2 py-1 text-left">type</th>
-                    <th className="px-2 py-1 text-left">config</th>
-                    <th className="px-2 py-1" />
-                  </tr>
-                </thead>
-                <tbody>
-                  {nodes.map(n => (
-                    <tr key={n.id} className="odd:bg-white even:bg-gray-50">
-                      <td className="px-2 py-1">{n.id}</td>
-                      <td className="px-2 py-1">{n.type}</td>
-                      <td className="px-2 py-1"><code>{JSON.stringify(n.config)}</code></td>
-                      <td className="px-2 py-1 text-right"><button onClick={()=>onRemoveNode(n.id)} className="px-2 py-1 text-red-600">Удалить</button></td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          </div>
+              <div>
+                <div className="text-sm font-medium text-gray-800 mb-2">Список узлов</div>
+                <div className="overflow-x-auto">
+                  <table className="min-w-full text-xs border rounded">
+                    <thead className="bg-gray-100">
+                      <tr>
+                        <th className="px-2 py-1 text-left">id</th>
+                        <th className="px-2 py-1 text-left">type</th>
+                        <th className="px-2 py-1 text-left">config</th>
+                        <th className="px-2 py-1" />
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {nodes.map(n => (
+                        <tr key={n.id} className="odd:bg-white even:bg-gray-50">
+                          <td className="px-2 py-1">{n.id}</td>
+                          <td className="px-2 py-1">{n.type}</td>
+                          <td className="px-2 py-1"><code>{JSON.stringify(n.data?.config || {})}</code></td>
+                          <td className="px-2 py-1 text-right"><button onClick={()=>onRemoveNode(n.id)} className="px-2 py-1 text-red-600">Удалить</button></td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
 
-          <div>
-            <div className="text-sm font-medium text-gray-800 mb-2">Добавить ребро</div>
-            <div className="grid grid-cols-1 md:grid-cols-4 gap-3">
-              <select value={newEdgeSource} onChange={(e)=>setNewEdgeSource(e.target.value)} className="p-3 border rounded">
-                {nodes.map(n => <option key={n.id} value={n.id}>{n.id}</option>)}
-              </select>
-              <select value={newEdgeTarget} onChange={(e)=>setNewEdgeTarget(e.target.value)} className="p-3 border rounded">
-                {nodes.map(n => <option key={n.id} value={n.id}>{n.id}</option>)}
-              </select>
-              <div />
-              <button onClick={onAddEdge} className="px-4 py-2 rounded bg-sky-600 text-white">Добавить ребро</button>
-            </div>
-          </div>
+              <div>
+                <div className="text-sm font-medium text-gray-800 mb-2">Добавить ребро</div>
+                <div className="grid grid-cols-1 md:grid-cols-4 gap-3">
+                  <select value={newEdgeSource} onChange={(e)=>setNewEdgeSource(e.target.value)} className="p-3 border rounded">
+                    {nodes.map(n => <option key={n.id} value={n.id}>{n.id}</option>)}
+                  </select>
+                  <select value={newEdgeTarget} onChange={(e)=>setNewEdgeTarget(e.target.value)} className="p-3 border rounded">
+                    {nodes.map(n => <option key={n.id} value={n.id}>{n.id}</option>)}
+                  </select>
+                  <div />
+                  <button onClick={onAddEdge} className="px-4 py-2 rounded bg-sky-600 text-white">Добавить ребро</button>
+                </div>
+              </div>
 
-          <div>
-            <div className="text-sm font-medium text-gray-800 mb-2">Рёбра</div>
-            <div className="overflow-x-auto">
-              <table className="min-w-full text-xs border rounded">
-                <thead className="bg-gray-100">
-                  <tr>
-                    <th className="px-2 py-1 text-left">id</th>
-                    <th className="px-2 py-1 text-left">source</th>
-                    <th className="px-2 py-1 text-left">target</th>
-                    <th className="px-2 py-1" />
-                  </tr>
-                </thead>
-                <tbody>
-                  {edges.map(e => (
-                    <tr key={e.id} className="odd:bg-white even:bg-gray-50">
-                      <td className="px-2 py-1">{e.id}</td>
-                      <td className="px-2 py-1">{e.source}</td>
-                      <td className="px-2 py-1">{e.target}</td>
-                      <td className="px-2 py-1 text-right"><button onClick={()=>onRemoveEdge(e.id)} className="px-2 py-1 text-red-600">Удалить</button></td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
+              <div>
+                <div className="text-sm font-medium text-gray-800 mb-2">Рёбра</div>
+                <div className="overflow-x-auto">
+                  <table className="min-w-full text-xs border rounded">
+                    <thead className="bg-gray-100">
+                      <tr>
+                        <th className="px-2 py-1 text-left">id</th>
+                        <th className="px-2 py-1 text-left">source</th>
+                        <th className="px-2 py-1 text-left">target</th>
+                        <th className="px-2 py-1" />
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {edges.map(e => (
+                        <tr key={e.id} className="odd:bg-white even:bg-gray-50">
+                          <td className="px-2 py-1">{e.id}</td>
+                          <td className="px-2 py-1">{e.source}</td>
+                          <td className="px-2 py-1">{e.target}</td>
+                          <td className="px-2 py-1 text-right"><button onClick={()=>onRemoveEdge(e.id)} className="px-2 py-1 text-red-600">Удалить</button></td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            </div>
+
+            <div className="bg-white rounded border p-4 space-y-3">
+              <div className="text-sm font-medium text-gray-800">Параметры узла</div>
+              {selectedNodeId ? (
+                <>
+                  <div className="text-xs text-gray-500">id: <span className="font-mono">{selectedNodeId}</span></div>
+                  <div>
+                    <label className="block text-xs text-gray-600 mb-1">Тип</label>
+                    <select value={selectedNodeType} onChange={(e)=>setSelectedNodeType(e.target.value)} className="w-full p-2 border rounded">
+                      {NODE_TYPES.map(t => <option key={t} value={t}>{t}</option>)}
+                    </select>
+                  </div>
+                  <div>
+                    <label className="block text-xs text-gray-600 mb-1">Config (JSON)</label>
+                    <textarea value={selectedNodeConfig} onChange={(e)=>setSelectedNodeConfig(e.target.value)} className="w-full h-48 p-2 border rounded font-mono text-xs"/>
+                  </div>
+                  <div className="flex gap-2">
+                    <button onClick={onUpdateSelectedNode} className="px-3 py-2 bg-emerald-600 text-white rounded">Сохранить</button>
+                    <button onClick={onDeleteSelectedNode} className="px-3 py-2 bg-red-600 text-white rounded">Удалить</button>
+                  </div>
+                </>
+              ) : (
+                <div className="text-xs text-gray-500">Выберите узел на графе, чтобы отредактировать параметры</div>
+              )}
             </div>
           </div>
         </div>
