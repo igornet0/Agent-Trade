@@ -6,6 +6,8 @@ import logging
 import time
 from datetime import datetime
 import math
+import os
+from uuid import uuid4
 
 from core.database import db_helper
 from core.database.orm.market import (
@@ -432,6 +434,30 @@ def run_pipeline_backtest_task(self, config_json: dict | None = None, timeframe:
             mdd = max_drawdown(eq)
             sortino = sortino_ratio(port_rets)
 
+            # Optional: write equity curve artifact (CSV) to temp file
+            artifacts = {}
+            try:
+                if datetimes:
+                    # Align datetimes to returns length
+                    # datetimes aligned to min_len bars; returns length = min_len-1
+                    dt_aligned = datetimes[-min_len:] if min_len > 0 else []
+                    # Fallback if no aligned timestamps present
+                    if len(dt_aligned) >= len(eq) - 1:
+                        # Build CSV rows ts,equity (skip first equity as it is starting equity)
+                        rows = ["timestamp,equity"]
+                        for i in range(1, len(eq)):
+                            ts = dt_aligned[i]
+                            rows.append(f"{ts},{eq[i]:.10f}")
+                        out_dir = os.environ.get("PIPELINE_ARTIFACTS_DIR", "/tmp")
+                        os.makedirs(out_dir, exist_ok=True)
+                        out_path = os.path.join(out_dir, f"equity_{uuid4().hex}.csv")
+                        with open(out_path, "w", encoding="utf-8") as f:
+                            f.write("\n".join(rows))
+                        artifacts["equity_csv"] = out_path
+            except Exception:
+                # do not fail task if artifacts write fails
+                pass
+
             metrics.update({
                 'bars': min_len,
                 'sma_period': sma_period,
@@ -442,6 +468,7 @@ def run_pipeline_backtest_task(self, config_json: dict | None = None, timeframe:
                 'Sortino': round(sortino, 4),
                 'MaxDrawdown': round(mdd, 6),
                 'timeframe': tf,
+                'artifacts': artifacts,
             })
             self.update_state(state='SUCCESS', meta={'progress': 100, 'message': 'Готово', 'metrics': metrics})
             return {"status": "success", "metrics": metrics}
