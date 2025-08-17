@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
-import ReactFlow, { Background, Controls, addEdge, MiniMap } from 'reactflow';
+import ReactFlow, { Background, Controls, addEdge, MiniMap, ReactFlowProvider, useReactFlow } from 'reactflow';
 import 'reactflow/dist/style.css';
 import { savePipeline, runPipeline, loadPipeline, stopPipelineTask } from '../../services/pipelineService';
 import { getTaskStatus } from '../../services/mlService';
@@ -174,13 +174,19 @@ export default function PipelineBuilder() {
         </div>
 
         <div className="bg-gray-50 p-4 rounded-lg space-y-4">
-          <div className="h-[400px] w-full rounded border overflow-hidden">
-            <ReactFlow nodes={nodes} edges={edges} onConnect={onConnect} onNodesChange={onNodesChange} onEdgesChange={onEdgesChange} onNodeClick={onNodeClick} fitView>
-              <MiniMap />
-              <Controls />
-              <Background />
-            </ReactFlow>
-          </div>
+          <ReactFlowProvider>
+            <DnDCanvas
+              nodes={nodes}
+              edges={edges}
+              setNodes={setNodes}
+              setEdges={setEdges}
+              onConnect={onConnect}
+              onNodesChange={onNodesChange}
+              onEdgesChange={onEdgesChange}
+              onNodeClick={onNodeClick}
+              nodeTypes={NODE_TYPES}
+            />
+          </ReactFlowProvider>
           <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
             <div className="lg:col-span-2 space-y-4">
               <div>
@@ -313,6 +319,56 @@ export default function PipelineBuilder() {
             </div>
           </div>
         )}
+      </div>
+    </div>
+  );
+}
+
+
+function DnDCanvas({ nodes, edges, setNodes, setEdges, onConnect, onNodesChange, onEdgesChange, onNodeClick, nodeTypes }) {
+  const { screenToFlowPosition } = useReactFlow();
+  const onDragOver = useCallback((event) => {
+    event.preventDefault();
+    event.dataTransfer.dropEffect = 'move';
+  }, []);
+  const onDrop = useCallback((event) => {
+    event.preventDefault();
+    const raw = event.dataTransfer.getData('application/reactflow');
+    if (!raw) return;
+    const data = JSON.parse(raw);
+    const type = data?.type || 'DataSource';
+    const position = screenToFlowPosition({ x: event.clientX, y: event.clientY });
+    const id = `${type.toLowerCase()}_${nodes.length + 1}`;
+    const newNode = { id, type, position, data: { label: type, config: {} } };
+    setNodes((nds) => nds.concat(newNode));
+  }, [nodes.length, screenToFlowPosition, setNodes]);
+
+  return (
+    <div className="grid grid-cols-1 lg:grid-cols-6 gap-4">
+      <div className="lg:col-span-1">
+        <div className="text-sm font-medium text-gray-800 mb-2">Палитра</div>
+        <div className="grid grid-cols-2 lg:grid-cols-1 gap-2">
+          {nodeTypes.map((t) => (
+            <div key={t}
+                 draggable
+                 onDragStart={(e)=>{
+                   e.dataTransfer.setData('application/reactflow', JSON.stringify({ type: t }));
+                   e.dataTransfer.effectAllowed = 'move';
+                 }}
+                 className="cursor-move px-3 py-2 bg-white border rounded text-xs text-gray-700 hover:bg-gray-100">
+              {t}
+            </div>
+          ))}
+        </div>
+      </div>
+      <div className="lg:col-span-5">
+        <div className="h-[400px] w-full rounded border overflow-hidden" onDrop={onDrop} onDragOver={onDragOver}>
+          <ReactFlow nodes={nodes} edges={edges} onConnect={onConnect} onNodesChange={onNodesChange} onEdgesChange={onEdgesChange} onNodeClick={onNodeClick} fitView>
+            <MiniMap />
+            <Controls />
+            <Background />
+          </ReactFlow>
+        </div>
       </div>
     </div>
   );
