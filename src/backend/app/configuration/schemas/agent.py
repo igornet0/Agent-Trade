@@ -2,7 +2,6 @@ from pydantic import BaseModel
 from enum import Enum as PyEnum
 import uuid
 from typing import Optional, Dict, Any
-from backend.Dataset import Indicators
 from pydantic import BaseModel, ConfigDict, EmailStr
 from datetime import datetime
 from datetime import datetime
