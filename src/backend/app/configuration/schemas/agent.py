@@ -97,6 +97,8 @@ class TrainData(BaseModel):
     batch_size: int
     learning_rate: float
     weight_decay: float
+    # Optional extra config bag for Stage 1 contract (DB support may be added later)
+    extra_config: Dict[str, Any] | None = None
 
 class AgentTrainResponse(BaseModel):
     class Config:

@@ -44,6 +44,7 @@ from backend.celery_app.tasks import train_model_task
 from backend.celery_app.tasks import evaluate_model_task, train_news_task
 from backend.celery_app.create_app import celery_app
 from backend.app.configuration.schemas.agent import TrainRequest
+from typing import Optional, List
 
 http_bearer = HTTPBearer(auto_error=False)
 
@@ -314,6 +315,22 @@ async def unified_evaluate(agent_type: AgentType,
                                          start=payload.start.isoformat() if payload.start else None,
                                          end=payload.end.isoformat() if payload.end else None)
     return {"task_id": task.id}
+
+
+# -------- News background endpoints (Stage 1 contract) --------
+@router.post("/news/recalc_background")
+async def news_recalc_background(coins: list[int] | None = None,
+                                 _: User = Depends(verify_authorization_admin)):
+    # Delegate to placeholder task for now
+    task = train_news_task.delay(coins=coins or [], config=None)
+    return {"task_id": task.id}
+
+
+@router.get("/news/background/{coin_id}")
+async def news_background(coin_id: int,
+                          _: User = Depends(verify_authorization_admin)):
+    # Placeholder: return 404 until storage implemented
+    raise HTTPException(status_code=404, detail="Background not implemented yet")
 
 @router.post("/agents/{agent_id}/promote")
 async def promote_agent(agent_id: int,

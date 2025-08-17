@@ -22,7 +22,7 @@ async def test_train_request_minimal_payload():
         timeframe="5m",
         coins=[1, 2],
         features=[],
-        train_data=m.TrainData(epochs=1, batch_size=32, learning_rate=0.001, weight_decay=0.0),
+        train_data=m.TrainData(epochs=1, batch_size=32, learning_rate=0.001, weight_decay=0.0, extra_config={"warmup": 10}),
     )
     assert req.name == "test_pred_time"
     assert req.type == m.AgentType.PREDTIME
@@ -52,4 +52,7 @@ async def test_train_request_with_news_config_defaults():
     cfg = m.NewsTrainConfig()
     assert isinstance(cfg.sources, list)
     assert cfg.nlp_model in ("bert", "finbert", "finbert") or isinstance(cfg.nlp_model, str)
+    # Ensure TrainData.extra_config exists and accepts dict
+    td = m.TrainData(epochs=1, batch_size=1, learning_rate=0.001, weight_decay=0.0, extra_config={"note": "ok"})
+    assert td.extra_config == {"note": "ok"}
 
