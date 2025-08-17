@@ -1,15 +1,15 @@
 import React, { useState } from 'react';
-import { FaCheckCircle, FaExclamationTriangle, FaInfoCircle, FaChartLine } from 'react-icons/fa';
+import { FaCheckCircle, FaExclamationTriangle } from 'react-icons/fa';
+import { get_train_status } from '../../services/strategyService';
 
-const AgentsTable = ({ agents, onAgentClick, onTrainNewAgent }) => {
+const AgentsTable = ({ agents, onAgentClick, onTrainNewAgent, onEvaluateAgent }) => {
   const [isTraining, setIsTraining] = useState(false);
 
-  const handleTrainClick = () => {
-    setIsTraining(true);
-    setTimeout(() => {
-      setIsTraining(false);
-      onTrainNewAgent();
-    }, 2000);
+  const handleCheckProgress = async (agentId) => {
+    try {
+      const s = await get_train_status(agentId);
+      alert(`Статус: ${s.status}, epoch: ${s.epoch_now}/${s.epochs}, loss: ${s.loss_now ?? 'n/a'}`);
+    } catch (e) { console.error(e); alert('Не удалось получить статус'); }
   };
 
   const getStatusIcon = (status) => {
@@ -52,18 +52,17 @@ const AgentsTable = ({ agents, onAgentClick, onTrainNewAgent }) => {
               <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Точность</th>
               <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Дата создания</th>
               <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Последнее обучение</th>
+              <th className="px-6 py-3"/>
             </tr>
           </thead>
           <tbody className="bg-white divide-y divide-gray-200">
             {agents.map((agent) => (
               <tr 
                 key={agent.id} 
-                className="hover:bg-gray-50 cursor-pointer"
-                onClick={() => onAgentClick(agent)}
+                className="hover:bg-gray-50"
               >
-                {/* <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{agent.id}</td> */}
                 <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{agent.version}</td>
-                <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">{agent.name}</td>
+                <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900 cursor-pointer" onClick={() => onAgentClick(agent)}>{agent.name}</td>
                 <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{agent.type}</td>
                 <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{agent.timeframe}</td>
                 <td className="px-6 py-4 whitespace-nowrap flex items-center">
@@ -76,6 +75,10 @@ const AgentsTable = ({ agents, onAgentClick, onTrainNewAgent }) => {
                 <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{new Date(agent.created).toLocaleDateString()}</td>
                 <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
                   {agent.last_trained ? new Date(agent.last_trained).toLocaleDateString() : 'N/A'}
+                </td>
+                <td className="px-6 py-4 whitespace-nowrap text-sm text-right space-x-2">
+                  <button className="px-3 py-1 rounded bg-blue-50 text-blue-700" onClick={()=>handleCheckProgress(agent.id)}>Прогресс</button>
+                  <button className="px-3 py-1 rounded bg-indigo-50 text-indigo-700" onClick={()=>onEvaluateAgent && onEvaluateAgent(agent)}>Оценить</button>
                 </td>
               </tr>
             ))}

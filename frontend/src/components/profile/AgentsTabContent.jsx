@@ -34,6 +34,10 @@ const AgentsTabContent = () => {
     setIsModalOpen(true);
   };
 
+  const handleEvaluateAgent = (agent) => {
+    window.location.hash = '#module_tester';
+  };
+
   const handleAgentTrained = (newAgents) => {
     setAgents(newAgents);
     setIsTrainingModalOpen(false);
@@ -79,6 +83,7 @@ const AgentsTabContent = () => {
           agents={agents} 
           onAgentClick={handleAgentClick}
           onTrainNewAgent={() => setIsTrainingModalOpen(true)}
+          onEvaluateAgent={handleEvaluateAgent}
         />
       </div>
 

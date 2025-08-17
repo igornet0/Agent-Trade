@@ -102,3 +102,9 @@ export const get_task_status = async (taskId) => {
   if (response.status !== 200) throw new Error('Ошибка статуса задачи');
   return response.data;
 }
+
+export const get_train_status = async (agentId) => {
+  const response = await api.get(`/api_db_agent/train_status/${agentId}`);
+  if (response.status !== 200) throw new Error('Ошибка статуса обучения');
+  return response.data;
+}
