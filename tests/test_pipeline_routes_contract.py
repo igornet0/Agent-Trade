@@ -33,3 +33,16 @@ async def test_pipeline_save_and_get_contract():
         assert isinstance(data.get("nodes"), list)
 
 
+@pytest.mark.anyio
+async def test_pipeline_get_404_and_revoke_skip_if_no_auth():
+    from backend.app import create_app
+    app = create_app(create_custom_static_urls=False)
+    async with AsyncClient(app=app, base_url="http://test") as ac:
+        # No auth header -> 401/403 tolerant check for revoke
+        r = await ac.get("/pipeline/nonexistent")
+        assert r.status_code in (401, 403)
+
+        r = await ac.post("/pipeline/tasks/some-task-id/revoke")
+        assert r.status_code in (401, 403)
+
+

@@ -5,6 +5,16 @@ import { savePipeline, runPipeline, loadPipeline, stopPipelineTask } from '../..
 import { getTaskStatus } from '../../services/mlService';
 
 export default function PipelineBuilder() {
+  const DEFAULT_CONFIGS = useMemo(() => ({
+    DataSource: { source: 'OHLCV' },
+    Indicators: { indicators: ['SMA(20)','RSI(14)','MACD'] },
+    News: { model: 'finbert', window: 288, horizon: 12 },
+    Pred_time: { model: 'LSTM', seq_len: 96, pred_len: 12 },
+    Trade_time: { classifier: 'LightGBM', target: 'buy_sell_hold' },
+    Risk: { model: 'XGBoost', max_leverage: 3, risk_limit_pct: 2 },
+    Trade: { mode: 'rules', weights: { pred: 0.5, trade: 0.3, risk: 0.2 } },
+    Metrics: { outputs: ['PnL','Sharpe','WinRate'] },
+  }), []);
   const [nodes, setNodes] = useState([
     { id: 'data', type: 'DataSource', position: { x: 100, y: 100 }, data: { label: 'DataSource', config: { source: 'OHLCV' } } },
     { id: 'pred', type: 'Pred_time', position: { x: 400, y: 100 }, data: { label: 'Pred_time', config: { seq_len: 96, pred_len: 12 } } },
@@ -87,7 +97,8 @@ export default function PipelineBuilder() {
     if (nodes.some(n => n.id === newNodeId)) return alert('Узел с таким id уже существует');
     let parsed = {};
     try { parsed = newNodeConfig ? JSON.parse(newNodeConfig) : {}; } catch { return alert('config должен быть валидным JSON'); }
-    setNodes(prev => [...prev, { id: newNodeId, type: newNodeType, position: { x: 200, y: 200 + prev.length * 40 }, data: { label: newNodeType, config: parsed } }]);
+    const baseCfg = Object.keys(parsed).length ? parsed : (DEFAULT_CONFIGS[newNodeType] || {});
+    setNodes(prev => [...prev, { id: newNodeId, type: newNodeType, position: { x: 200, y: 200 + prev.length * 40 }, data: { label: newNodeType, config: baseCfg } }]);
   };
 
   const onRemoveNode = (id) => {
@@ -339,9 +350,10 @@ function DnDCanvas({ nodes, edges, setNodes, setEdges, onConnect, onNodesChange,
     const type = data?.type || 'DataSource';
     const position = screenToFlowPosition({ x: event.clientX, y: event.clientY });
     const id = `${type.toLowerCase()}_${nodes.length + 1}`;
-    const newNode = { id, type, position, data: { label: type, config: {} } };
+    const cfg = DEFAULT_CONFIGS[type] || {};
+    const newNode = { id, type, position, data: { label: type, config: cfg } };
     setNodes((nds) => nds.concat(newNode));
-  }, [nodes.length, screenToFlowPosition, setNodes]);
+  }, [DEFAULT_CONFIGS, nodes.length, screenToFlowPosition, setNodes]);
 
   return (
     <div className="grid grid-cols-1 lg:grid-cols-6 gap-4">
