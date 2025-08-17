@@ -6,7 +6,10 @@ __all__ = ("CoinResponse", "UserResponse", "UserLoginResponse",
            "AgentTrade", "AgentStrategy", "AgentStata", "AgentAction",
            "FeatureTypeResponse", "AgentTrainResponse",
            "TrainData", "StrategyCreate", "StrategyResponse", "StrategyModelsUpdate",
-           "EvaluateRequest", "EvaluateResponse")
+           "EvaluateRequest", "EvaluateResponse",
+           # New training API contracts
+           "TrainRequest", "NewsTrainConfig", "PredTimeTrainConfig", "TradeTimeTrainConfig", "RiskTrainConfig", "TradeAggregatorConfig",
+           )
 
 from .coin import CoinData, CoinResponse, TimeLineCoin, CoinResponseData
 from .user import UserResponse, UserLoginResponse, TokenData, Token
@@ -22,5 +25,7 @@ from .agent import (AgentResponse, AgentTypeResponse, FeatureTypeResponse,
                                                      AgentStrategy,
                                                      AgentStata,
                                                      AgentAction,
-                                                     EvaluateRequest, EvaluateResponse)
+                                                     EvaluateRequest, EvaluateResponse,
+                                                     TrainRequest,
+                                                     NewsTrainConfig, PredTimeTrainConfig, TradeTimeTrainConfig, RiskTrainConfig, TradeAggregatorConfig)
 from .strategy import (CreateStrategyResponse, StrategyResponse, StrategyModelsUpdate)

@@ -43,6 +43,7 @@ from backend.app.configuration import (Server,
 from backend.celery_app.tasks import train_model_task
 from backend.celery_app.tasks import evaluate_model_task
 from backend.celery_app.create_app import celery_app
+from backend.app.configuration.schemas.agent import TrainRequest
 
 http_bearer = HTTPBearer(auto_error=False)
 
@@ -253,6 +254,56 @@ async def get_task_status(task_id: str,
 @router.post("/evaluate")
 async def evaluate_agent(payload: EvaluateRequest,
                          _: User = Depends(verify_authorization_admin)):
+    task = evaluate_model_task.delay(agent_id=payload.agent_id,
+                                     coins=payload.coins,
+                                     timeframe=payload.timeframe or "5m",
+                                     start=payload.start.isoformat() if payload.start else None,
+                                     end=payload.end.isoformat() if payload.end else None)
+    return {"task_id": task.id}
+
+
+# Unified train/evaluate endpoints by agent type (backward-compatible wrappers)
+@router.post("/{agent_type}/train")
+async def unified_train(agent_type: AgentType,
+                        payload: TrainRequest,
+                        _: User = Depends(verify_authorization_admin),
+                        db: AsyncSession = Depends(Server.get_db)):
+    if payload.type != agent_type:
+        raise HTTPException(status_code=400, detail="type mismatch between path and payload")
+
+    try:
+        existing = await orm_get_agent_by_name(db, payload.name)
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Agent failed: {str(e)}")
+    if existing:
+        raise HTTPException(status_code=400, detail="Agent with this name already exists")
+
+    try:
+        # Reuse existing creation logic
+        agent_payload = AgentTrainResponse(
+            name=payload.name,
+            type=payload.type,
+            timeframe=payload.timeframe or "5m",
+            features=payload.features or [],
+            coins=payload.coins or [],
+            train_data=payload.train_data,
+            RP_I=False,
+        )
+        agent, train_data = await orm_add_agent(db, agent_payload)
+        task = train_model_task.delay(agent_id=agent["id"])  # kick off training
+        if train_data is not None:
+            train_data.task_id = task.id
+            await db.commit()
+        return {"agent": agent, "task_id": task.id}
+    except Exception as e:
+        await db.rollback()
+        raise HTTPException(status_code=500, detail=f"Unified train failed: {str(e)}")
+
+
+@router.post("/{agent_type}/evaluate")
+async def unified_evaluate(agent_type: AgentType,
+                           payload: EvaluateRequest,
+                           _: User = Depends(verify_authorization_admin)):
     task = evaluate_model_task.delay(agent_id=payload.agent_id,
                                      coins=payload.coins,
                                      timeframe=payload.timeframe or "5m",

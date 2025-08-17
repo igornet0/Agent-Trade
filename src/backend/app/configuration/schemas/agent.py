@@ -159,3 +159,53 @@ class EvaluateRequest(BaseModel):
 class EvaluateResponse(BaseModel):
     task_id: str
     detail: Optional[str] = None
+
+
+# ---------- Training configs per module type ----------
+class NewsTrainConfig(BaseModel):
+    sources: List[str] = []  # e.g., ["twitter", "telegram", "coindesk"]
+    nlp_model: str = "finbert"  # e.g., "bert", "finbert"
+    features: List[str] = []  # extracted features list
+    window_minutes: int = 240  # rolling window to aggregate influence
+    influence_horizon_minutes: int = 180  # horizon for impact propagation
+
+
+class PredTimeTrainConfig(BaseModel):
+    model_name: str = "LSTM"  # e.g., LSTM, GRU, Informer, TimesNet
+    seq_len: int = 96
+    pred_len: int = 12
+    indicators: List[str] = ["SMA", "RSI", "MACD"]
+    use_news_background: bool = True
+
+
+class TradeTimeTrainConfig(BaseModel):
+    classifier: str = "LightGBM"  # e.g., LightGBM, CatBoost, Transformer
+    target_scheme: str = "direction3"  # mapping to {buy/sell/hold}
+    use_news_background: bool = False
+
+
+class RiskTrainConfig(BaseModel):
+    model_name: str = "XGBoost"  # heuristic+ML default
+    features: List[str] = ["balance", "pnl", "leverage", "signals"]
+
+
+class TradeAggregatorConfig(BaseModel):
+    mode: str = "rules"  # rules | rl
+    weights: Dict[str, float] = {"pred_time": 0.4, "trade_time": 0.4, "news": 0.1, "risk": 0.1}
+    rl_enabled: bool = False
+
+
+class TrainRequest(BaseModel):
+    name: str
+    type: AgentType
+    timeframe: Optional[str] = "5m"
+    coins: List[int] = []
+    features: List[Feature] = []
+    train_data: Optional[TrainData] = None
+    # Flexible extra configuration; specific typed configs are optional
+    extra_config: Dict[str, Any] | None = None
+    news_config: Optional[NewsTrainConfig] = None
+    pred_time_config: Optional[PredTimeTrainConfig] = None
+    trade_time_config: Optional[TradeTimeTrainConfig] = None
+    risk_config: Optional[RiskTrainConfig] = None
+    trade_aggregator_config: Optional[TradeAggregatorConfig] = None

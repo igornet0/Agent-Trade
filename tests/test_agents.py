@@ -41,3 +41,24 @@ async def test_agents_filter_by_type_query_param_contract():
         assert r.status_code in (401, 403)
 
 
+@pytest.mark.anyio
+async def test_unified_train_contract_mismatch_type():
+    app = create_app(create_custom_static_urls=False)
+    async with AsyncClient(app=app, base_url="http://test") as ac:
+        await ac.post("/auth/register/", json={"login": "admin3", "email": "admin3@example.com", "password": "secret"})
+        r = await ac.post("/auth/login_user/", data={"username": "admin3", "password": "secret"})
+        token = r.json()["access_token"]
+        # Пытаемся вызвать unified train без прав админа и с несовпадающим типом
+        payload = {
+            "name": "test_agent",
+            "type": AgentType.TRADETIME.value,
+            "timeframe": "5m",
+            "coins": [],
+            "features": [],
+            "train_data": {"epochs": 1, "batch_size": 1, "learning_rate": 0.001, "weight_decay": 0.0}
+        }
+        r = await ac.post(f"/api_db_agent/{AgentType.PREDTIME.value}/train", json=payload, headers={"Authorization": f"Bearer {token}"})
+        # либо 401/403 (нет прав админа), либо 400 (рассинхрон типов) — контрактная проверка
+        assert r.status_code in (400, 401, 403)
+
+
