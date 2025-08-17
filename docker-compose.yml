@@ -1,181 +1,66 @@
-version: '3.8'
+
 
 services:
   db:
-    image: postgres:latest
-    restart: always
-    healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER} -d ${POSTGRES_DB}"]
-      interval: 10s
-      retries: 5
-      start_period: 30s
-      timeout: 10s
-    env_file: ./settings/prod.env
-    volumes:
-      - app-db-data:/var/lib/postgresql/data/pgdata
-    environment:
-      - PGDATA=/var/lib/postgresql/data/pgdata
-      - POSTGRES_PASSWORD=${POSTGRES_PASSWORD?Variable not set}
-      - POSTGRES_USER=${POSTGRES_USER?Variable not set}
-      - POSTGRES_DB=${POSTGRES_DB?Variable not set}
-    ports:
-      - "5432:5432"
-
-  adminer:
-    image: adminer
-    restart: always
-    networks:
-      - traefik-public
-      - default
-    depends_on:
-      - db
-    environment:
-      - ADMINER_DESIGN=pepa-linha-dark
-    labels:
-      - traefik.enable=true
-      - traefik.docker.network=traefik-public
-      - traefik.constraint-label=traefik-public
-      - traefik.http.routers.${STACK_NAME?Variable not set}-adminer-http.rule=Host(`adminer.${DOMAIN?Variable not set}`)
-      - traefik.http.routers.${STACK_NAME?Variable not set}-adminer-http.entrypoints=http
-      - traefik.http.routers.${STACK_NAME?Variable not set}-adminer-http.middlewares=https-redirect
-      - traefik.http.routers.${STACK_NAME?Variable not set}-adminer-https.rule=Host(`adminer.${DOMAIN?Variable not set}`)
-      - traefik.http.routers.${STACK_NAME?Variable not set}-adminer-https.entrypoints=https
-      - traefik.http.routers.${STACK_NAME?Variable not set}-adminer-https.tls=true
-      - traefik.http.routers.${STACK_NAME?Variable not set}-adminer-https.tls.certresolver=le
-      - traefik.http.services.${STACK_NAME?Variable not set}-adminer.loadbalancer.server.port=8080
-
-  # prestart:
-  #   image: '${DOCKER_IMAGE_BACKEND?Variable not set}:${TAG-latest}'
-  #   build:
-  #     context: .
-  #   networks:
-  #     - traefik-public
-  #     - default
-  #   depends_on:
-  #     db:
-  #       condition: service_healthy
-  #       restart: true
-  #   command: sh scripts/prestart.sh
-  #   env_file:
-  #     - ./settings/prod.env
-  #   environment:
-  #     - DOMAIN=${DOMAIN}
-  #     - FRONTEND_HOST=${FRONTEND_HOST?Variable not set}
-  #     - ENVIRONMENT=${ENVIRONMENT}
-  #     - BACKEND_CORS_ORIGINS=${BACKEND_CORS_ORIGINS}
-  #     - SECURITY__SECRET_KEY=${SECURITY__SECRET_KEY?Variable not set}
-  #     - FIRST_SUPERUSER=${FIRST_SUPERUSER?Variable not set}
-  #     - FIRST_SUPERUSER_PASSWORD=${FIRST_SUPERUSER_PASSWORD?Variable not set}
-  #     - SMTP_HOST=${SMTP_HOST}
-  #     - SMTP_USER=${SMTP_USER}
-  #     - SMTP_PASSWORD=${SMTP_PASSWORD}
-  #     - EMAILS_FROM_EMAIL=${EMAILS_FROM_EMAIL}
-  #     - POSTGRES_SERVER=db
-  #     - POSTGRES_PORT=${POSTGRES_PORT}
-  #     - POSTGRES_DB=${POSTGRES_DB}
-  #     - POSTGRES_USER=${POSTGRES_USER?Variable not set}
-  #     - POSTGRES_PASSWORD=${POSTGRES_PASSWORD?Variable not set}
-  #     - SENTRY_DSN=${SENTRY_DSN}
-
-  fastapi:
-    image: '${DOCKER_IMAGE_BACKEND?Variable not set}:${TAG-latest}'
-    restart: always
-    networks:
-      - traefik-public
-      - default
-    depends_on:
-      db:
-        condition: service_healthy
-        restart: true
-      # prestart:
-      #   condition: service_completed_successfully
+    image: postgres:16
+    
     env_file:
       - ./settings/prod.env
     environment:
-      - DOMAIN=${DOMAIN}
-      - FRONTEND_HOST=${FRONTEND_HOST?Variable not set}
-      - ENVIRONMENT=${ENVIRONMENT}
-      - BACKEND_CORS_ORIGINS=${BACKEND_CORS_ORIGINS}
-      - SECURITY__SECRET_KEY=${SECURITY__SECRET_KEY?Variable not set}
-      - FIRST_SUPERUSER=${FIRST_SUPERUSER?Variable not set}
-      - FIRST_SUPERUSER_PASSWORD=${FIRST_SUPERUSER_PASSWORD?Variable not set}
-      - SMTP_HOST=${SMTP_HOST}
-      - SMTP_USER=${SMTP_USER}
-      - SMTP_PASSWORD=${SMTP_PASSWORD}
-      - EMAILS_FROM_EMAIL=${EMAILS_FROM_EMAIL}
-      - POSTGRES_SERVER=db
-      - POSTGRES_PORT=${POSTGRES_PORT}
-      - POSTGRES_DB=${POSTGRES_DB}
-      - POSTGRES_USER=${POSTGRES_USER?Variable not set}
-      - POSTGRES_PASSWORD=${POSTGRES_PASSWORD?Variable not set}
-      - SENTRY_DSN=${SENTRY_DSN}
+      POSTGRES_USER: ${DB__USER}
+      POSTGRES_PASSWORD: ${DB__PASSWORD}
+      POSTGRES_DB: ${DB__DB_NAME}
+    ports:
+      - "5432:5432"
+    volumes:
+      - db_data:/var/lib/postgresql/data
 
-    # healthcheck:
-    #   test: ["CMD", "curl", "-f", "http://localhost:8000/api/v1/utils/health-check/"]
-    #   interval: 10s
-    #   timeout: 5s
-    #   retries: 5
+  rabbitmq:
+    image: rabbitmq:3-management
+    ports:
+      - "5672:5672"
+      - "15672:15672"
 
+  api:
     build:
       context: .
-    labels:
-      - traefik.enable=true
-      - traefik.docker.network=traefik-public
-      - traefik.constraint-label=traefik-public
+      target: base
+    env_file:
+      - ./settings/prod.env
+    depends_on:
+      - db
+      - rabbitmq
+    ports:
+      - "8000:8000"
+    command: ["uvicorn", "run_app:main_app", "--host", "0.0.0.0", "--port", "8000"]
 
-      - traefik.http.services.${STACK_NAME?Variable not set}-backend.loadbalancer.server.port=8000
-
-      - traefik.http.routers.${STACK_NAME?Variable not set}-backend-http.rule=Host(`api.${DOMAIN?Variable not set}`)
-      - traefik.http.routers.${STACK_NAME?Variable not set}-backend-http.entrypoints=http
-
-      - traefik.http.routers.${STACK_NAME?Variable not set}-backend-https.rule=Host(`api.${DOMAIN?Variable not set}`)
-      - traefik.http.routers.${STACK_NAME?Variable not set}-backend-https.entrypoints=https
-      - traefik.http.routers.${STACK_NAME?Variable not set}-backend-https.tls=true
-      - traefik.http.routers.${STACK_NAME?Variable not set}-backend-https.tls.certresolver=le
-
-      # Enable redirection for HTTP and HTTPS
-      - traefik.http.routers.${STACK_NAME?Variable not set}-backend-http.middlewares=https-redirect
-  frontend:
-    image: '${DOCKER_IMAGE_FRONTEND?Variable not set}:${TAG-latest}'
-    restart: always
-    networks:
-      - traefik-public
-      - default
+  worker:
     build:
-      context: ./frontend
-      args:
-        - VITE_API_URL=https://api.${DOMAIN?Variable not set}
-        - NODE_ENV=production
-    labels:
-      - traefik.enable=true
-      - traefik.docker.network=traefik-public
-      - traefik.constraint-label=traefik-public
+      context: .
+      target: worker
+    env_file:
+      - ./settings/prod.env
+    depends_on:
+      - db
+      - rabbitmq
+    command: ["celery", "-A", "backend.celery_app.create_app.celery_app", "worker", "-l", "INFO"]
 
-      - traefik.http.services.${STACK_NAME?Variable not set}-frontend.loadbalancer.server.port=80
-
-      - traefik.http.routers.${STACK_NAME?Variable not set}-frontend-http.rule=Host(`dashboard.${DOMAIN?Variable not set}`)
-      - traefik.http.routers.${STACK_NAME?Variable not set}-frontend-http.entrypoints=http
-
-      - traefik.http.routers.${STACK_NAME?Variable not set}-frontend-https.rule=Host(`dashboard.${DOMAIN?Variable not set}`)
-      - traefik.http.routers.${STACK_NAME?Variable not set}-frontend-https.entrypoints=https
-      - traefik.http.routers.${STACK_NAME?Variable not set}-frontend-https.tls=true
-      - traefik.http.routers.${STACK_NAME?Variable not set}-frontend-https.tls.certresolver=le
-
-      # Enable redirection for HTTP and HTTPS
-      - traefik.http.routers.${STACK_NAME?Variable not set}-frontend-http.middlewares=https-redirect
-  
-  # parser:
-  #   build: .
-  #   env_file: ./settings/prod.env
-  #   ports:
-  #     - "8001:8001"
-  #   depends_on:
-  #     - db
+  frontend:
+    image: node:22-alpine
+    working_dir: /app/frontend
+    volumes:
+      - ./:/app
+    env_file:
+      - ./settings/prod.env
+    environment:
+      - VITE_API_BASE_URL=http://localhost:8000
+    ports:
+      - "5173:5173"
+    command: sh -c "npm run dev -- --host 0.0.0.0 --port 5173"
+    depends_on:
+      - api
 
 volumes:
-  app-db-data:
+  db_data:
 
-networks:
-  traefik-public:
-    # Allow setting it to false for testing
-    external: true
+
