@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import ProfileTabContent from '../components/profile/ProfileTabContent';
 import FinanceTabContent from '../components/profile/FinanceTabContent';
 import AgentsTabContent from '../components/profile/AgentsTabContent';
@@ -105,6 +105,23 @@ const ProfileSidebar = ({ activeTab, setActiveTab, onLogout }) => {
 
 const ProfilePage = ({ user, onLogout }) => {
   const [activeTab, setActiveTab] = useState('profile');
+
+  useEffect(() => {
+    const mapHashToTab = (hash) => {
+      const h = (hash || '').replace('#', '');
+      if (!h) return null;
+      // allow known keys direct mapping
+      const allowed = new Set(['profile','finance','agents','models','pipeline','strategy','strategys','coins','module_tester']);
+      return allowed.has(h) ? h : null;
+    };
+    const applyHash = () => {
+      const tab = mapHashToTab(window.location.hash);
+      if (tab) setActiveTab(tab);
+    };
+    applyHash();
+    window.addEventListener('hashchange', applyHash);
+    return () => window.removeEventListener('hashchange', applyHash);
+  }, []);
   return (
     <div className="min-h-screen bg-gray-100">
       <div className="flex">
