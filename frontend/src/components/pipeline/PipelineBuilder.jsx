@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { savePipeline, runPipeline } from '../../services/pipelineService';
 import { getTaskStatus } from '../../services/mlService';
 
@@ -13,6 +13,15 @@ export default function PipelineBuilder() {
   const [end, setEnd] = useState('');
   const [taskId, setTaskId] = useState(null);
   const [task, setTask] = useState(null);
+
+  // Simple palette / editor state
+  const NODE_TYPES = useMemo(() => ['DataSource','Indicators','News','Pred_time','Trade_time','Risk','Trade','Metrics'], []);
+  const [newNodeId, setNewNodeId] = useState('node1');
+  const [newNodeType, setNewNodeType] = useState('DataSource');
+  const [newNodeConfig, setNewNodeConfig] = useState('{"source":"OHLCV"}');
+
+  const [newEdgeSource, setNewEdgeSource] = useState('data');
+  const [newEdgeTarget, setNewEdgeTarget] = useState('pred');
 
   useEffect(() => {
     if (!taskId) return;
@@ -36,6 +45,28 @@ export default function PipelineBuilder() {
   const onRun = async () => {
     try { const res = await runPipeline(config); setTaskId(res.task_id); } catch (e) { console.error(e); alert('Ошибка запуска'); }
   };
+
+  const onAddNode = () => {
+    if (!newNodeId) return alert('Укажите id узла');
+    if (nodes.some(n => n.id === newNodeId)) return alert('Узел с таким id уже существует');
+    let parsed = {};
+    try { parsed = newNodeConfig ? JSON.parse(newNodeConfig) : {}; } catch { return alert('config должен быть валидным JSON'); }
+    setNodes(prev => [...prev, { id: newNodeId, type: newNodeType, config: parsed }]);
+  };
+
+  const onRemoveNode = (id) => {
+    setNodes(prev => prev.filter(n => n.id !== id));
+    setEdges(prev => prev.filter(e => e.source !== id && e.target !== id));
+  };
+
+  const onAddEdge = () => {
+    if (!newEdgeSource || !newEdgeTarget) return;
+    if (newEdgeSource === newEdgeTarget) return alert('source и target не должны совпадать');
+    const id = `e_${newEdgeSource}_${newEdgeTarget}_${edges.length+1}`;
+    setEdges(prev => [...prev, { id, source: newEdgeSource, target: newEdgeTarget }]);
+  };
+
+  const onRemoveEdge = (id) => setEdges(prev => prev.filter(e => e.id !== id));
 
   return (
     <div className="lg:col-span-3">
@@ -64,11 +95,84 @@ export default function PipelineBuilder() {
           </div>
         </div>
 
-        <div className="bg-gray-50 p-4 rounded-lg">
-          <div className="text-sm text-gray-700 mb-2">Узлы</div>
-          <pre className="text-xs bg-white p-3 rounded border overflow-auto max-h-64">{JSON.stringify(nodes, null, 2)}</pre>
-          <div className="text-sm text-gray-700 mt-4 mb-2">Рёбра</div>
-          <pre className="text-xs bg-white p-3 rounded border overflow-auto max-h-64">{JSON.stringify(edges, null, 2)}</pre>
+        <div className="bg-gray-50 p-4 rounded-lg space-y-4">
+          <div>
+            <div className="text-sm font-medium text-gray-800 mb-2">Добавить узел</div>
+            <div className="grid grid-cols-1 md:grid-cols-4 gap-3">
+              <input value={newNodeId} onChange={(e)=>setNewNodeId(e.target.value)} className="p-3 border rounded" placeholder="id (например, ind1)" />
+              <select value={newNodeType} onChange={(e)=>setNewNodeType(e.target.value)} className="p-3 border rounded">
+                {NODE_TYPES.map(t => <option key={t} value={t}>{t}</option>)}
+              </select>
+              <input value={newNodeConfig} onChange={(e)=>setNewNodeConfig(e.target.value)} className="p-3 border rounded" placeholder='{"key":"value"}' />
+              <button onClick={onAddNode} className="px-4 py-2 rounded bg-emerald-600 text-white">Добавить узел</button>
+            </div>
+          </div>
+
+          <div>
+            <div className="text-sm font-medium text-gray-800 mb-2">Список узлов</div>
+            <div className="overflow-x-auto">
+              <table className="min-w-full text-xs border rounded">
+                <thead className="bg-gray-100">
+                  <tr>
+                    <th className="px-2 py-1 text-left">id</th>
+                    <th className="px-2 py-1 text-left">type</th>
+                    <th className="px-2 py-1 text-left">config</th>
+                    <th className="px-2 py-1" />
+                  </tr>
+                </thead>
+                <tbody>
+                  {nodes.map(n => (
+                    <tr key={n.id} className="odd:bg-white even:bg-gray-50">
+                      <td className="px-2 py-1">{n.id}</td>
+                      <td className="px-2 py-1">{n.type}</td>
+                      <td className="px-2 py-1"><code>{JSON.stringify(n.config)}</code></td>
+                      <td className="px-2 py-1 text-right"><button onClick={()=>onRemoveNode(n.id)} className="px-2 py-1 text-red-600">Удалить</button></td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </div>
+
+          <div>
+            <div className="text-sm font-medium text-gray-800 mb-2">Добавить ребро</div>
+            <div className="grid grid-cols-1 md:grid-cols-4 gap-3">
+              <select value={newEdgeSource} onChange={(e)=>setNewEdgeSource(e.target.value)} className="p-3 border rounded">
+                {nodes.map(n => <option key={n.id} value={n.id}>{n.id}</option>)}
+              </select>
+              <select value={newEdgeTarget} onChange={(e)=>setNewEdgeTarget(e.target.value)} className="p-3 border rounded">
+                {nodes.map(n => <option key={n.id} value={n.id}>{n.id}</option>)}
+              </select>
+              <div />
+              <button onClick={onAddEdge} className="px-4 py-2 rounded bg-sky-600 text-white">Добавить ребро</button>
+            </div>
+          </div>
+
+          <div>
+            <div className="text-sm font-medium text-gray-800 mb-2">Рёбра</div>
+            <div className="overflow-x-auto">
+              <table className="min-w-full text-xs border rounded">
+                <thead className="bg-gray-100">
+                  <tr>
+                    <th className="px-2 py-1 text-left">id</th>
+                    <th className="px-2 py-1 text-left">source</th>
+                    <th className="px-2 py-1 text-left">target</th>
+                    <th className="px-2 py-1" />
+                  </tr>
+                </thead>
+                <tbody>
+                  {edges.map(e => (
+                    <tr key={e.id} className="odd:bg-white even:bg-gray-50">
+                      <td className="px-2 py-1">{e.id}</td>
+                      <td className="px-2 py-1">{e.source}</td>
+                      <td className="px-2 py-1">{e.target}</td>
+                      <td className="px-2 py-1 text-right"><button onClick={()=>onRemoveEdge(e.id)} className="px-2 py-1 text-red-600">Удалить</button></td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </div>
         </div>
 
         {taskId && (
