@@ -1,9 +1,19 @@
 import React, { useEffect, useMemo, useState } from 'react';
-import { get_agents, get_coins, evaluate_agent, get_task_status } from '../../services/strategyService';
+import { get_agents, get_coins } from '../../services/strategyService';
+import { evaluateModel, getTaskStatus } from '../../services/mlService';
+
+const AGENT_TYPES = [
+  { value: 'AgentPredTime', label: 'Pred_time' },
+  { value: 'AgentTradeTime', label: 'Trade_time' },
+  { value: 'AgentNews', label: 'News' },
+  { value: 'AgentRisk', label: 'Risk' },
+  { value: 'AgentTradeAggregator', label: 'Trade (Aggregator)' },
+];
 
 const ModuleTester = () => {
   const [agents, setAgents] = useState([]);
   const [coins, setCoins] = useState([]);
+  const [agentType, setAgentType] = useState('AgentPredTime');
   const [selectedAgentId, setSelectedAgentId] = useState('');
   const [selectedCoinIds, setSelectedCoinIds] = useState([]);
   const [timeframe, setTimeframe] = useState('5m');
@@ -34,7 +44,7 @@ const ModuleTester = () => {
     let timer;
     const tick = async () => {
       try {
-        const t = await get_task_status(taskId);
+        const t = await getTaskStatus(taskId);
         setTask(t);
         if (!t.ready) return; // keep until ready
         setPolling(false);
@@ -55,13 +65,13 @@ const ModuleTester = () => {
   const onRun = async () => {
     try {
       const payload = {
-        agent_id: Number(selectedAgentId),
+        agent_id: Number(selectedAgentId) || undefined,
         coins: selectedCoinIds,
         timeframe,
         start: start || null,
         end: end || null,
       };
-      const res = await evaluate_agent(payload);
+      const res = await evaluateModel(agentType, payload);
       setTaskId(res.task_id);
     } catch (e) {
       console.error(e);
@@ -75,19 +85,27 @@ const ModuleTester = () => {
           <h2 className="text-2xl font-bold text-gray-800">Module Tester</h2>
           <button
             onClick={onRun}
-            disabled={!selectedAgentId || selectedCoinIds.length === 0}
-            className={`px-4 py-2 rounded-md font-medium ${(!selectedAgentId || selectedCoinIds.length === 0) ? 'bg-gray-300 cursor-not-allowed' : 'bg-blue-600 text-white hover:bg-blue-700'}`}
+            disabled={(!selectedAgentId && agentType !== 'AgentNews') || selectedCoinIds.length === 0}
+            className={`px-4 py-2 rounded-md font-medium ${((!selectedAgentId && agentType !== 'AgentNews') || selectedCoinIds.length === 0) ? 'bg-gray-300 cursor-not-allowed' : 'bg-blue-600 text-white hover:bg-blue-700'}`}
           >
             Запустить оценку
           </button>
         </div>
 
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+        <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-2">Тип модуля</label>
+            <select value={agentType} onChange={(e) => setAgentType(e.target.value)} className="w-full p-3 border border-gray-300 rounded-lg">
+              {AGENT_TYPES.map(t => <option key={t.value} value={t.value}>{t.label}</option>)}
+            </select>
+          </div>
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-2">Агент</label>
             <select value={selectedAgentId} onChange={(e) => setSelectedAgentId(e.target.value)} className="w-full p-3 border border-gray-300 rounded-lg">
-              <option value="">Выберите агента</option>
-              {agents.map(a => (
+              <option value="">{agentType === 'AgentNews' ? 'Не требуется' : 'Выберите агента'}</option>
+              {agents
+                .filter(a => !agentType || a.type === agentType)
+                .map(a => (
                 <option value={a.id} key={a.id}>{a.name} ({a.type})</option>
               ))}
             </select>
