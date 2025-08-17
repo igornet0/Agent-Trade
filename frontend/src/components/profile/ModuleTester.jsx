@@ -1,6 +1,7 @@
 import React, { useEffect, useMemo, useState } from 'react';
-import { get_agents, get_coins } from '../../services/strategyService';
+import { get_agents, get_coins, get_available_features } from '../../services/strategyService';
 import { evaluateModel, getTaskStatus } from '../../services/mlService';
+import TaskProgressWidget from './TaskProgressWidget';
 
 const AGENT_TYPES = [
   { value: 'AgentPredTime', label: 'Pred_time' },
@@ -13,70 +14,101 @@ const AGENT_TYPES = [
 const ModuleTester = () => {
   const [agents, setAgents] = useState([]);
   const [coins, setCoins] = useState([]);
-  const [agentType, setAgentType] = useState('AgentPredTime');
-  const [selectedAgentId, setSelectedAgentId] = useState('');
-  const [selectedCoinIds, setSelectedCoinIds] = useState([]);
-  const [timeframe, setTimeframe] = useState('5m');
-  const [start, setStart] = useState('');
-  const [end, setEnd] = useState('');
-  const [taskId, setTaskId] = useState(null);
-  const [task, setTask] = useState(null);
-  const [polling, setPolling] = useState(false);
+  const [features, setFeatures] = useState([]);
+  const [selectedAgent, setSelectedAgent] = useState(null);
+  const [evaluationConfig, setEvaluationConfig] = useState({});
+  const [currentTaskId, setCurrentTaskId] = useState(null);
+  const [evaluationResults, setEvaluationResults] = useState(null);
+  const [loading, setLoading] = useState(false);
 
   useEffect(() => {
-    const load = async () => {
-      try {
-        const [ag, cs] = await Promise.all([
-          get_agents('open'),
-          get_coins(),
-        ]);
-        setAgents(ag);
-        setCoins(cs);
-      } catch (e) {
-        console.error(e);
-      }
-    };
-    load();
+    loadData();
   }, []);
 
-  useEffect(() => {
-    if (!taskId) return;
-    let timer;
-    const tick = async () => {
-      try {
-        const t = await getTaskStatus(taskId);
-        setTask(t);
-        if (!t.ready) return; // keep until ready
-        setPolling(false);
-        clearInterval(timer);
-      } catch (e) {
-        console.error(e);
-      }
-    };
-    setPolling(true);
-    timer = setInterval(tick, 2000);
-    return () => clearInterval(timer);
-  }, [taskId]);
-
-  const toggleCoin = (id) => {
-    setSelectedCoinIds((prev) => prev.includes(id) ? prev.filter(x => x !== id) : [...prev, id]);
-  };
-
-  const onRun = async () => {
+  const loadData = async () => {
     try {
-      const payload = {
-        agent_id: Number(selectedAgentId) || undefined,
-        coins: selectedCoinIds,
-        timeframe,
-        start: start || null,
-        end: end || null,
-      };
-      const res = await evaluateModel(agentType, payload);
-      setTaskId(res.task_id);
-    } catch (e) {
-      console.error(e);
+      setLoading(true);
+      const [agentsData, coinsData, featuresData] = await Promise.all([
+        get_agents(),
+        get_coins(),
+        get_available_features()
+      ]);
+      setAgents(agentsData);
+      setCoins(coinsData);
+      setFeatures(featuresData);
+    } catch (error) {
+      console.error('Error loading data:', error);
+    } finally {
+      setLoading(false);
     }
   };
+
+  const handleEvaluate = async () => {
+    if (!selectedAgent) {
+      alert('Выберите агента для оценки');
+      return;
+    }
+
+    try {
+      setLoading(true);
+      const response = await evaluateModel(selectedAgent.type, {
+        agent_id: selectedAgent.id,
+        ...evaluationConfig
+      });
+      
+      if (response.task_id) {
+        setCurrentTaskId(response.task_id);
+      } else {
+        // Direct result
+        setEvaluationResults(response);
+      }
+    } catch (error) {
+      console.error('Error evaluating agent:', error);
+      alert('Ошибка при оценке агента');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleTaskComplete = (taskData) => {
+    setEvaluationResults(taskData.meta?.result || taskData);
+    setCurrentTaskId(null);
+  };
+
+  const handleTaskError = (taskData) => {
+    alert(`Ошибка оценки: ${taskData.error || 'Неизвестная ошибка'}`);
+    setCurrentTaskId(null);
+  };
+
+  const getAgentTypeLabel = (type) => {
+    const typeMap = {
+      'AgentNews': 'News',
+      'AgentPredTime': 'Pred_time',
+      'AgentTradeTime': 'Trade_time',
+      'AgentRisk': 'Risk',
+      'AgentTradeAggregator': 'Trade (Aggregator)'
+    };
+    return typeMap[type] || type;
+  };
+
+  const getStatusColor = (status) => {
+    const colorMap = {
+      'open': 'bg-green-100 text-green-800',
+      'training': 'bg-yellow-100 text-yellow-800',
+      'error': 'bg-red-100 text-red-800',
+      'completed': 'bg-blue-100 text-blue-800'
+    };
+    return colorMap[status] || 'bg-gray-100 text-gray-800';
+  };
+
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center p-8">
+        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
+        <span className="ml-2 text-gray-600">Загрузка данных...</span>
+      </div>
+    );
+  }
 
   return (
     <div className="lg:col-span-3">
@@ -84,94 +116,149 @@ const ModuleTester = () => {
         <div className="flex items-center justify-between">
           <h2 className="text-2xl font-bold text-gray-800">Module Tester</h2>
           <button
-            onClick={onRun}
-            disabled={(!selectedAgentId && agentType !== 'AgentNews') || selectedCoinIds.length === 0}
-            className={`px-4 py-2 rounded-md font-medium ${((!selectedAgentId && agentType !== 'AgentNews') || selectedCoinIds.length === 0) ? 'bg-gray-300 cursor-not-allowed' : 'bg-blue-600 text-white hover:bg-blue-700'}`}
+            onClick={handleEvaluate}
+            disabled={loading}
+            className={`px-4 py-2 rounded-md font-medium ${loading ? 'bg-gray-300 cursor-not-allowed' : 'bg-blue-600 text-white hover:bg-blue-700'}`}
           >
-            Запустить оценку
+            {loading ? 'Запуск оценки...' : 'Запустить оценку'}
           </button>
         </div>
 
-        <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-2">Тип модуля</label>
-            <select value={agentType} onChange={(e) => setAgentType(e.target.value)} className="w-full p-3 border border-gray-300 rounded-lg">
-              {AGENT_TYPES.map(t => <option key={t.value} value={t.value}>{t.label}</option>)}
-            </select>
-          </div>
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-2">Агент</label>
-            <select value={selectedAgentId} onChange={(e) => setSelectedAgentId(e.target.value)} className="w-full p-3 border border-gray-300 rounded-lg">
-              <option value="">{agentType === 'AgentNews' ? 'Не требуется' : 'Выберите агента'}</option>
-              {agents
-                .filter(a => !agentType || a.type === agentType)
-                .map(a => (
-                <option value={a.id} key={a.id}>{a.name} ({a.type})</option>
-              ))}
-            </select>
-          </div>
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-2">Таймфрейм</label>
-            <select value={timeframe} onChange={(e) => setTimeframe(e.target.value)} className="w-full p-3 border border-gray-300 rounded-lg">
-              {['5m','15m','30m','1h','4h','1d'].map(tf => <option key={tf} value={tf}>{tf}</option>)}
-            </select>
-          </div>
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-2">Период</label>
-            <div className="flex space-x-2">
-              <input type="datetime-local" value={start} onChange={(e)=>setStart(e.target.value)} className="w-1/2 p-3 border border-gray-300 rounded-lg" />
-              <input type="datetime-local" value={end} onChange={(e)=>setEnd(e.target.value)} className="w-1/2 p-3 border border-gray-300 rounded-lg" />
-            </div>
-          </div>
-        </div>
-
-        <div>
-          <label className="block text-sm font-medium text-gray-700 mb-2">Монеты</label>
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-2 max-h-64 overflow-auto p-2 border rounded-lg">
-            {coins.map(c => (
-              <label key={c.id} className="flex items-center space-x-2">
-                <input type="checkbox" checked={selectedCoinIds.includes(c.id)} onChange={()=>toggleCoin(c.id)} />
-                <span>{c.name}</span>
-              </label>
+        {/* Agent Selection */}
+        <div className="mb-6">
+          <label className="block text-sm font-medium text-gray-700 mb-2">
+            Выберите агента для тестирования
+          </label>
+          <select
+            value={selectedAgent?.id || ''}
+            onChange={(e) => {
+              const agent = agents.find(a => a.id === parseInt(e.target.value));
+              setSelectedAgent(agent);
+              setEvaluationResults(null);
+            }}
+            className="w-full p-3 border border-gray-300 rounded-lg focus:ring-blue-500 focus:border-blue-500"
+          >
+            <option value="">Выберите агента...</option>
+            {agents.map((agent) => (
+              <option key={agent.id} value={agent.id}>
+                {agent.name} ({getAgentTypeLabel(agent.type)}) - {agent.status}
+              </option>
             ))}
-          </div>
+          </select>
         </div>
 
-        {taskId && (
-          <div className="p-4 bg-gray-50 rounded-lg">
-            <div className="text-sm text-gray-600">Task: {taskId}</div>
-            <div className="mt-2">
-              {task ? (
-                <div className="text-sm">
-                  <div>Состояние: <span className="font-medium">{task.state}</span></div>
+        {/* Evaluation Configuration */}
+        {selectedAgent && (
+          <div className="mb-6 p-4 bg-gray-50 rounded-lg">
+            <h3 className="text-lg font-medium text-gray-900 mb-3">
+              Конфигурация оценки для {selectedAgent.name}
+            </h3>
+            
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  Монеты для тестирования
+                </label>
+                <select
+                  multiple
+                  value={evaluationConfig.coins || []}
+                  onChange={(e) => {
+                    const selected = Array.from(e.target.selectedOptions, option => option.value);
+                    setEvaluationConfig(prev => ({ ...prev, coins: selected }));
+                  }}
+                  className="w-full p-3 border border-gray-300 rounded-lg focus:ring-blue-500 focus:border-blue-500"
+                >
+                  {coins.map((coin) => (
+                    <option key={coin.id} value={coin.id}>
+                      {coin.name} ({coin.symbol})
+                    </option>
+                  ))}
+                </select>
+              </div>
 
-                  {/* Structured metrics view by module type */}
-                  <MetricsView agentType={agentType} task={task} />
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  Таймфрейм
+                </label>
+                <select
+                  value={evaluationConfig.timeframe || '5m'}
+                  onChange={(e) => setEvaluationConfig(prev => ({ ...prev, timeframe: e.target.value }))}
+                  className="w-full p-3 border border-gray-300 rounded-lg focus:ring-blue-500 focus:border-blue-500"
+                >
+                  <option value="5m">5 минут</option>
+                  <option value="15m">15 минут</option>
+                  <option value="30m">30 минут</option>
+                  <option value="1h">1 час</option>
+                  <option value="4h">4 часа</option>
+                  <option value="1d">1 день</option>
+                </select>
+              </div>
 
-                  {/* Raw data fallback */}
-                  {task.meta && task.meta.metrics && (
-                    <details className="mt-3">
-                      <summary className="cursor-pointer text-gray-700">Raw metrics</summary>
-                      <pre className="mt-2 text-xs bg-white p-3 rounded border overflow-auto max-h-64">{JSON.stringify(task.meta.metrics, null, 2)}</pre>
-                    </details>
-                  )}
-                  {task.ready && task.successful && task.meta && (
-                    <details className="mt-2">
-                      <summary className="cursor-pointer text-gray-700">Raw meta</summary>
-                      <pre className="mt-2 text-xs bg-white p-3 rounded border overflow-auto max-h-64">{JSON.stringify(task.meta, null, 2)}</pre>
-                    </details>
-                  )}
-                </div>
-              ) : (
-                <div className="flex items-center text-gray-600"><span className="animate-spin h-4 w-4 border-t-2 border-blue-500 rounded-full mr-2"/>Ожидание...</div>
-              )}
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  Период тестирования (дни)
+                </label>
+                <input
+                  type="number"
+                  min="1"
+                  max="365"
+                  value={evaluationConfig.test_period || 30}
+                  onChange={(e) => setEvaluationConfig(prev => ({ ...prev, test_period: parseInt(e.target.value) }))}
+                  className="w-full p-3 border border-gray-300 rounded-lg focus:ring-blue-500 focus:border-blue-500"
+                  placeholder="30"
+                />
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  Дополнительные параметры
+                </label>
+                <textarea
+                  value={evaluationConfig.extra_params || ''}
+                  onChange={(e) => setEvaluationConfig(prev => ({ ...prev, extra_params: e.target.value }))}
+                  className="w-full p-3 border border-gray-300 rounded-lg focus:ring-blue-500 focus:border-blue-500"
+                  placeholder="JSON параметры для специфичных настроек"
+                  rows="3"
+                />
+              </div>
             </div>
+
+            <div className="mt-4">
+              <button
+                onClick={handleEvaluate}
+                disabled={loading}
+                className="px-6 py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+              >
+                {loading ? 'Запуск оценки...' : 'Запустить оценку'}
+              </button>
+            </div>
+          </div>
+        )}
+
+        {/* Task Progress */}
+        {currentTaskId && (
+          <div className="mb-6">
+            <h3 className="text-lg font-medium text-gray-900 mb-3">Прогресс оценки</h3>
+            <TaskProgressWidget
+              taskId={currentTaskId}
+              onComplete={handleTaskComplete}
+              onError={handleTaskError}
+              autoStart={true}
+            />
+          </div>
+        )}
+
+        {/* Evaluation Results */}
+        {evaluationResults && (
+          <div className="mb-6">
+            <h3 className="text-lg font-medium text-gray-900 mb-3">Результаты оценки</h3>
+            <MetricsView agentType={selectedAgent?.type} task={{ meta: { metrics: evaluationResults } }} />
           </div>
         )}
       </div>
     </div>
   );
-}
+};
 
 export default ModuleTester;
 
