@@ -120,13 +120,25 @@ class Loader:
             for batch_idx, batch in pbar:
                 
                 optimizer.zero_grad()
-                args = [arg.to(self.device) for arg in batch if arg is not None]
-                x, y, *_ = args
+                # Аккуратно распаковываем батч (x, y, ...), часть позиций может быть None
+                args = []
+                for arg in batch:
+                    if arg is None:
+                        args.append(None)
+                    else:
+                        args.append(arg.to(self.device))
+                x, y, *rest = args
 
                 with autocast(device_type=self.device.type, enabled=effective_mp and (is_cuda or is_mps)):
                 # with torch.no_grad():
                     
-                    outputs = agent.trade([x, *_])
+                    # Передаём только существующие тензоры в нужном порядке
+                    forward_args = [x]
+                    if len(rest) > 0 and rest[0] is not None:
+                        forward_args.append(rest[0])
+                    if len(rest) > 1 and rest[1] is not None:
+                        forward_args.append(rest[1])
+                    outputs = agent.trade(forward_args)
                 
                     # print(outputs.shape, y.shape)
                     loss = agent.loss_function(outputs, y)
