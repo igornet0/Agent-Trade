@@ -50,6 +50,7 @@ export default function PipelineBuilder() {
   const [task, setTask] = useState(null);
   const [savedPipelineId, setSavedPipelineId] = useState('');
   const [loadPipelineId, setLoadPipelineId] = useState('');
+  const [importInputKey, setImportInputKey] = useState(() => String(Date.now()));
 
   // Simple palette / editor state
   const NODE_TYPES = useMemo(() => ['DataSource','Indicators','News','Pred_time','Trade_time','Risk','Trade','Metrics'], []);
@@ -115,6 +116,43 @@ export default function PipelineBuilder() {
     } catch (e) { console.error(e); alert('Ошибка загрузки пайплайна'); }
   };
 
+  const exportJson = () => {
+    try {
+      const dataStr = JSON.stringify(pipelineConfig, null, 2);
+      const blob = new Blob([dataStr], { type: 'application/json' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `pipeline_${new Date().toISOString().slice(0,19)}.json`;
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      URL.revokeObjectURL(url);
+    } catch (e) {
+      console.error(e); alert('Ошибка экспорта');
+    }
+  };
+
+  const onImportFile = async (e) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    try {
+      const text = await file.text();
+      const cfg = JSON.parse(text);
+      const rfNodes = (cfg.nodes || []).map((n, idx) => ({ id: n.id, type: n.type, position: { x: 120 + (idx%4)*180, y: 80 + Math.floor(idx/4)*120 }, data: { label: n.type, config: n.config || {} } }));
+      const rfEdges = (cfg.edges || []).map((e, i) => ({ id: e.id || `e_${e.source}_${e.target}_${i+1}`, source: e.source, target: e.target }));
+      setNodes(rfNodes);
+      setEdges(rfEdges);
+      setTimeframe(cfg.timeframe || '5m');
+      setStart(cfg.start || '');
+      setEnd(cfg.end || '');
+      setImportInputKey(String(Date.now()));
+      alert('Импортировано из файла');
+    } catch (err) {
+      console.error(err); alert('Некорректный JSON');
+    }
+  };
+
   const onAddNode = () => {
     if (!newNodeId) return alert('Укажите id узла');
     if (nodes.some(n => n.id === newNodeId)) return alert('Узел с таким id уже существует');
@@ -178,6 +216,11 @@ export default function PipelineBuilder() {
             <button onClick={onSave} className="px-4 py-2 rounded-md font-medium bg-gray-100 hover:bg-gray-200">Сохранить</button>
             <button onClick={onRun} className="px-4 py-2 rounded-md font-medium bg-blue-600 text-white hover:bg-blue-700">Запустить</button>
             {taskId && <button onClick={async()=>{ try { await stopPipelineTask(taskId); } catch(e){ console.error(e);} }} className="px-4 py-2 rounded-md font-medium bg-red-600 text-white hover:bg-red-700">Остановить</button>}
+            <button onClick={exportJson} className="px-4 py-2 rounded-md font-medium bg-gray-100 hover:bg-gray-200">Экспорт</button>
+            <label className="px-4 py-2 rounded-md font-medium bg-gray-100 hover:bg-gray-200 cursor-pointer">
+              Импорт
+              <input key={importInputKey} type="file" accept="application/json" className="hidden" onChange={onImportFile} />
+            </label>
           </div>
         </div>
 
