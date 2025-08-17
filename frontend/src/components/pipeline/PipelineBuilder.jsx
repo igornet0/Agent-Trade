@@ -1,7 +1,7 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import ReactFlow, { Background, Controls, addEdge, MiniMap } from 'reactflow';
 import 'reactflow/dist/style.css';
-import { savePipeline, runPipeline, loadPipeline } from '../../services/pipelineService';
+import { savePipeline, runPipeline, loadPipeline, stopPipelineTask } from '../../services/pipelineService';
 import { getTaskStatus } from '../../services/mlService';
 
 export default function PipelineBuilder() {
@@ -143,6 +143,7 @@ export default function PipelineBuilder() {
           <div className="space-x-2">
             <button onClick={onSave} className="px-4 py-2 rounded-md font-medium bg-gray-100 hover:bg-gray-200">Сохранить</button>
             <button onClick={onRun} className="px-4 py-2 rounded-md font-medium bg-blue-600 text-white hover:bg-blue-700">Запустить</button>
+            {taskId && <button onClick={async()=>{ try { await stopPipelineTask(taskId); } catch(e){ console.error(e);} }} className="px-4 py-2 rounded-md font-medium bg-red-600 text-white hover:bg-red-700">Остановить</button>}
           </div>
         </div>
 
@@ -292,15 +293,12 @@ export default function PipelineBuilder() {
           <div className="p-4 bg-gray-50 rounded-lg">
             <div className="text-sm text-gray-600">Task: <span className="font-medium">{taskId}</span></div>
             <div className="mt-2">
-              {task ? (
-                <div className="text-sm">
-                  <div>Состояние: <span className="font-medium">{task.state}</span></div>
-                  {task.meta && (
-                    <pre className="mt-2 text-xs bg-white p-3 rounded border overflow-auto max-h-64">{JSON.stringify(task.meta, null, 2)}</pre>
-                  )}
-                </div>
-              ) : (
-                <div className="flex items-center text-gray-600"><span className="animate-spin h-4 w-4 border-t-2 border-blue-500 rounded-full mr-2"/>Ожидание...</div>
+              <div className="mb-2 text-sm">Состояние: <span className="font-medium">{task?.state || 'PENDING'}</span></div>
+              <div className="w-full bg-gray-200 rounded h-2 overflow-hidden">
+                <div className="bg-blue-600 h-2" style={{ width: `${Math.min(100, task?.meta?.progress || 0)}%` }} />
+              </div>
+              {task?.meta && (
+                <pre className="mt-2 text-xs bg-white p-3 rounded border overflow-auto max-h-64">{JSON.stringify(task.meta, null, 2)}</pre>
               )}
             </div>
           </div>

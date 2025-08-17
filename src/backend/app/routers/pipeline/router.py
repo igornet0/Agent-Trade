@@ -35,3 +35,13 @@ async def get_pipeline(pipeline_id: str, _: str = Depends(verify_authorization_a
     return cfg
 
 
+@router.post("/tasks/{task_id}/revoke")
+async def revoke_pipeline_task(task_id: str, _: str = Depends(verify_authorization_admin)):
+    # Best-effort revoke
+    try:
+        celery_app.control.revoke(task_id, terminate=True, signal="SIGTERM")
+    except Exception:
+        pass
+    return {"status": "revoked", "task_id": task_id}
+
+

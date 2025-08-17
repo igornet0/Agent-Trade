@@ -22,4 +22,10 @@ export const loadPipeline = async (pipelineId) => {
   return response.data;
 };
 
+export const stopPipelineTask = async (taskId) => {
+  const response = await api.post(`/pipeline/tasks/${taskId}/revoke`);
+  if (response.status !== 200) throw new Error('Не удалось остановить задачу');
+  return response.data;
+};
+
 
