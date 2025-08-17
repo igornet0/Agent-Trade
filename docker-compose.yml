@@ -28,7 +28,6 @@ services:
     env_file:
       - ./settings/prod.env
     depends_on:
-      - db
       - rabbitmq
     ports:
       - "8000:8000"
@@ -41,7 +40,6 @@ services:
     env_file:
       - ./settings/prod.env
     depends_on:
-      - db
       - rabbitmq
     command: ["celery", "-A", "backend.celery_app.create_app.celery_app", "worker", "-l", "INFO"]
 
