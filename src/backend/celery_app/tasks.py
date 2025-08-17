@@ -60,7 +60,7 @@ def train_model_task(self, agent_id: int):
             async def build_dataset_for_coin(coin_id: int):
                 ts = await orm_get_timeseries_by_coin(session, coin_id, timeframe=timeframe)
                 if not ts:
-                    return []
+                    return
                 data_rows = await orm_get_data_timeseries(session, ts.id)
                 # Sort ascending by datetime
                 data_rows = sorted(data_rows, key=lambda r: r.datetime)
