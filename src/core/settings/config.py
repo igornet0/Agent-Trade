@@ -1,4 +1,4 @@
-from typing import Literal
+from typing import Literal, List, Dict
 from pydantic import Field
 from pathlib import Path
 from pydantic_settings import BaseSettings, SettingsConfigDict
@@ -30,7 +30,7 @@ class RunConfig(BaseSettings):
 
     frontend_host: str = Field(default="localhost")
     frontend_port: int = Field(default=5173)
-    allowed_origins: list[str] = Field(
+    allowed_origins: List[str] = Field(
         default=[
             "http://localhost:5173",
             "https://localhost:5173",
@@ -78,7 +78,7 @@ class DatabaseConfig(BaseSettings):
     max_overflow: int = 10
     pool_timeout: int = 30
 
-    naming_convention: dict[str, str] = {
+    naming_convention: Dict[str, str] = {
         "ix": "ix_%(column_0_label)s",
         "uq": "uq_%(table_name)s_%(column_0_N_name)s",
         "ck": "ck_%(table_name)s_%(constraint_name)s",

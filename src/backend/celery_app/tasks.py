@@ -1436,3 +1436,33 @@ def evaluate_risk_task(self, coin_id: str, start_date: str, end_date: str, extra
     except Exception as e:
         logger.error(f"Error in evaluate_risk_task: {e}")
         raise self.retry(countdown=60, max_retries=3)
+
+@app.task(bind=True)
+def train_trade_aggregator_task(self, coin_id: str, start_date: str, end_date: str, extra_config: Optional[Dict] = None):
+    """Задача для обучения Trade Aggregator модели"""
+    try:
+        from core.services.trade_aggregator_service import TradeAggregatorService
+        
+        service = TradeAggregatorService()
+        result = service.train_model(coin_id, start_date, end_date, extra_config)
+        
+        return result
+        
+    except Exception as e:
+        logger.error(f"Error in train_trade_aggregator_task: {e}")
+        raise self.retry(countdown=60, max_retries=3)
+
+@app.task(bind=True)
+def evaluate_trade_aggregator_task(self, coin_id: str, start_date: str, end_date: str, extra_config: Optional[Dict] = None):
+    """Задача для оценки Trade Aggregator модели"""
+    try:
+        from core.services.trade_aggregator_service import TradeAggregatorService
+        
+        service = TradeAggregatorService()
+        result = service.evaluate_model(coin_id, start_date, end_date, extra_config)
+        
+        return result
+        
+    except Exception as e:
+        logger.error(f"Error in evaluate_trade_aggregator_task: {e}")
+        raise self.retry(countdown=60, max_retries=3)

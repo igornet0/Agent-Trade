@@ -5,6 +5,7 @@ import NewsTrainPanel from './NewsTrainPanel';
 import PredTimeTrainPanel from './PredTimeTrainPanel';
 import TradeTimeTrainPanel from './TradeTimeTrainPanel';
 import RiskTrainPanel from './RiskTrainPanel';
+import TradeAggregatorTrainPanel from './TradeAggregatorTrainPanel';
 import TaskProgressWidget from './TaskProgressWidget';
 
 const TrainAgentModal = ({ isOpen, onClose, onAgentTrained }) => {
@@ -35,6 +36,39 @@ const TrainAgentModal = ({ isOpen, onClose, onAgentTrained }) => {
     sources: ['twitter', 'telegram'],
     min_sources: 2,
     force_recalculate: false
+  });
+
+  const [tradeAggregatorConfig, setTradeAggregatorConfig] = useState({
+    mode: 'rules',
+    weights: {
+      pred_time: 0.4,
+      trade_time: 0.4,
+      risk: 0.2
+    },
+    thresholds: {
+      buy_threshold: 0.6,
+      sell_threshold: 0.4,
+      hold_threshold: 0.3
+    },
+    risk_limits: {
+      max_position_size: 0.1,
+      max_leverage: 3.0,
+      stop_loss_pct: 0.05,
+      take_profit_pct: 0.15
+    },
+    portfolio: {
+      max_coins: 10,
+      rebalance_frequency: '1h',
+      correlation_threshold: 0.7
+    },
+    n_estimators: 100,
+    learning_rate: 0.1,
+    max_depth: 6,
+    technical_indicators: ['sma', 'rsi', 'macd', 'bb'],
+    news_integration: true,
+    feature_scaling: true,
+    val_split: 0.2,
+    test_split: 0.2
   });
 
   const [predTimeConfig, setPredTimeConfig] = useState({
@@ -177,6 +211,39 @@ const TrainAgentModal = ({ isOpen, onClose, onAgentTrained }) => {
       val_split: 0.2,
       test_split: 0.2
     });
+
+    setTradeAggregatorConfig({
+      mode: 'rules',
+      weights: {
+        pred_time: 0.4,
+        trade_time: 0.4,
+        risk: 0.2
+      },
+      thresholds: {
+        buy_threshold: 0.6,
+        sell_threshold: 0.4,
+        hold_threshold: 0.3
+      },
+      risk_limits: {
+        max_position_size: 0.1,
+        max_leverage: 3.0,
+        stop_loss_pct: 0.05,
+        take_profit_pct: 0.15
+      },
+      portfolio: {
+        max_coins: 10,
+        rebalance_frequency: '1h',
+        correlation_threshold: 0.7
+      },
+      n_estimators: 100,
+      learning_rate: 0.1,
+      max_depth: 6,
+      technical_indicators: ['sma', 'rsi', 'macd', 'bb'],
+      news_integration: true,
+      feature_scaling: true,
+      val_split: 0.2,
+      test_split: 0.2
+    });
   };
 
   useEffect(() => {
@@ -216,6 +283,7 @@ const TrainAgentModal = ({ isOpen, onClose, onAgentTrained }) => {
   const isAgentPredTime = selectedAgentType === 'AgentPredTime';
   const isAgentTradeTime = selectedAgentType === 'AgentTradeTime';
   const isAgentRisk = selectedAgentType === 'AgentRisk';
+  const isAgentTradeAggregator = selectedAgentType === 'Trade_aggregator';
 
   const handleAgentTypeChange = (value) => {
     setSelectedAgentType(value);
@@ -276,7 +344,7 @@ const TrainAgentModal = ({ isOpen, onClose, onAgentTrained }) => {
         })),
         coins: selectedCoins,
         // Add ML-specific configuration
-        extra_config: isAgentNews ? newsConfig : isAgentPredTime ? predTimeConfig : isAgentTradeTime ? tradeTimeConfig : isAgentRisk ? riskConfig : {}
+        extra_config: isAgentNews ? newsConfig : isAgentPredTime ? predTimeConfig : isAgentTradeTime ? tradeTimeConfig : isAgentRisk ? riskConfig : isAgentTradeAggregator ? tradeAggregatorConfig : {}
       };
       
       const response = await train_new_agent(agentData);
@@ -598,6 +666,13 @@ const TrainAgentModal = ({ isOpen, onClose, onAgentTrained }) => {
             <div className="border-t border-gray-200 pt-4 mb-4">
               <h4 className="text-lg font-semibold text-gray-700 mb-4">Конфигурация Risk модели</h4>
               <RiskTrainPanel config={riskConfig} onChange={setRiskConfig} />
+            </div>
+          )}
+
+          {isAgentTradeAggregator && (
+            <div className="border-t border-gray-200 pt-4 mb-4">
+              <h4 className="text-lg font-semibold text-gray-700 mb-4">Конфигурация Trade Aggregator модели</h4>
+              <TradeAggregatorTrainPanel config={tradeAggregatorConfig} onChange={setTradeAggregatorConfig} />
             </div>
           )}
 

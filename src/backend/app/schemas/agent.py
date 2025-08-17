@@ -1,5 +1,5 @@
 from pydantic import BaseModel, Field
-from typing import List, Optional, Dict, Union
+from typing import List, Optional, Dict, Union, Any
 from datetime import datetime
 from enum import Enum
 
@@ -10,6 +10,7 @@ class AgentType(str, Enum):
     TRADE_TIME = "Trade_time"
     RISK = "Risk"
     TRADE = "Trade"
+    TRADE_AGGREGATOR = "Trade_aggregator"
 
 class TrainRequest(BaseModel):
     """Схема для запроса на обучение"""
@@ -158,6 +159,60 @@ class EvaluateResponse(BaseModel):
     task_id: str
     status: str
     message: str
+
+class TradeAggregatorTrainConfig(BaseModel):
+    """Конфигурация для обучения Trade Aggregator модели"""
+    mode: str = Field(default="rules", description="Режим работы (rules/ml)")
+    weights: Dict[str, float] = Field(
+        default={"pred_time": 0.4, "trade_time": 0.4, "risk": 0.2},
+        description="Веса для агрегации сигналов"
+    )
+    thresholds: Dict[str, float] = Field(
+        default={"buy_threshold": 0.6, "sell_threshold": 0.4, "hold_threshold": 0.3},
+        description="Пороги для принятия решений"
+    )
+    risk_limits: Dict[str, float] = Field(
+        default={"max_position_size": 0.1, "max_leverage": 3.0, "stop_loss_pct": 0.05, "take_profit_pct": 0.15},
+        description="Лимиты риск-менеджмента"
+    )
+    portfolio: Dict[str, Any] = Field(
+        default={"max_coins": 10, "rebalance_frequency": "1h", "correlation_threshold": 0.7},
+        description="Настройки портфеля"
+    )
+    # ML параметры (если mode == 'ml')
+    n_estimators: Optional[int] = Field(default=100, ge=50, le=1000, description="Количество деревьев")
+    learning_rate: Optional[float] = Field(default=0.1, ge=0.01, le=0.3, description="Скорость обучения")
+    max_depth: Optional[int] = Field(default=6, ge=3, le=15, description="Максимальная глубина")
+    technical_indicators: List[str] = Field(default=["sma", "rsi", "macd", "bb"], description="Технические индикаторы")
+    news_integration: bool = Field(default=True, description="Интеграция новостей")
+    feature_scaling: bool = Field(default=True, description="Масштабирование признаков")
+    val_split: float = Field(default=0.2, ge=0.1, le=0.4, description="Доля валидации")
+    test_split: float = Field(default=0.2, ge=0.1, le=0.4, description="Доля тестирования")
+
+class TradeAggregatorModel(BaseModel):
+    """Модель Trade Aggregator"""
+    id: int = Field(description="ID модели")
+    agent_id: int = Field(description="ID агента")
+    mode: str = Field(description="Режим работы")
+    weights: Dict[str, float] = Field(description="Веса агрегации")
+    thresholds: Dict[str, float] = Field(description="Пороги решений")
+    risk_limits: Dict[str, float] = Field(description="Лимиты риска")
+    portfolio_config: Dict[str, Any] = Field(description="Конфигурация портфеля")
+    artifact_path: Optional[str] = Field(default=None, description="Путь к артефактам")
+    created_at: datetime = Field(description="Дата создания")
+    is_active: bool = Field(default=False, description="Активна ли модель")
+
+class TradeAggregatorPrediction(BaseModel):
+    """Предсказание Trade Aggregator"""
+    decision: str = Field(description="Решение (buy/sell/hold)")
+    confidence: float = Field(description="Уверенность (0-1)")
+    position_size: float = Field(description="Размер позиции")
+    stop_loss_pct: float = Field(description="Стоп-лосс в %")
+    take_profit_pct: float = Field(description="Тейк-профит в %")
+    max_leverage: float = Field(description="Максимальное плечо")
+    signals: Dict[str, float] = Field(description="Сигналы от модулей")
+    portfolio_metrics: Dict[str, Any] = Field(description="Метрики портфеля")
+    metadata: Optional[Dict] = Field(default=None, description="Дополнительные метаданные")
 
 
 

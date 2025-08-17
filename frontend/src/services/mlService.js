@@ -91,6 +91,24 @@ export default {
     getModels: (agentId) => api.get(`/api_db_agent/risk/models/${agentId}`),
     predict: (coinId, startDate, endDate, modelPath) => 
       api.post(`/api_db_agent/risk/predict`, { coin_id: coinId, start_date: startDate, end_date: endDate, model_path: modelPath })
+  },
+
+  // Trade Aggregator specific methods
+  tradeAggregator: {
+    train: (coinId, startDate, endDate, extraConfig) => 
+      api.post(`/api_db_agent/trade_aggregator/train`, { coin_id: coinId, start_date: startDate, end_date: endDate, extra_config: extraConfig }),
+    evaluate: (coinId, startDate, endDate, extraConfig) => 
+      api.post(`/api_db_agent/trade_aggregator/evaluate`, { coin_id: coinId, start_date: startDate, end_date: endDate, extra_config: extraConfig }),
+    getModels: (agentId) => api.get(`/api_db_agent/trade_aggregator/models/${agentId}`),
+    predict: (coinId, predTimeSignals, tradeTimeSignals, riskSignals, portfolioState, extraConfig) => 
+      api.post(`/api_db_agent/trade_aggregator/predict`, { 
+        coin_id: coinId, 
+        pred_time_signals: predTimeSignals, 
+        trade_time_signals: tradeTimeSignals, 
+        risk_signals: riskSignals, 
+        portfolio_state: portfolioState, 
+        extra_config: extraConfig 
+      })
   }
 };
 

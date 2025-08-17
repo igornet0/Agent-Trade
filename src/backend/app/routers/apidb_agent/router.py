@@ -888,6 +888,98 @@ async def train_risk(
         logger.error(f"Error in risk train: {e}")
         raise HTTPException(status_code=500, detail=str(e))
 
+# Trade Aggregator endpoints
+@router.post("/trade_aggregator/train")
+async def train_trade_aggregator(
+    coin_id: int,
+    start_date: str,
+    end_date: str,
+    extra_config: Optional[Dict] = None,
+    current_user: User = Depends(verify_authorization_admin)
+):
+    """Обучение Trade Aggregator модели"""
+    try:
+        from core.services.trade_aggregator_service import TradeAggregatorService
+        
+        service = TradeAggregatorService()
+        result = service.train_model(str(coin_id), start_date, end_date, extra_config)
+        
+        return result
+        
+    except Exception as e:
+        logger.error(f"Error in trade_aggregator train: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+@router.post("/trade_aggregator/evaluate")
+async def evaluate_trade_aggregator(
+    coin_id: int,
+    start_date: str,
+    end_date: str,
+    extra_config: Optional[Dict] = None,
+    current_user: User = Depends(verify_authorization_admin)
+):
+    """Оценка Trade Aggregator модели"""
+    try:
+        from core.services.trade_aggregator_service import TradeAggregatorService
+        
+        service = TradeAggregatorService()
+        result = service.evaluate_model(str(coin_id), start_date, end_date, extra_config)
+        
+        return result
+        
+    except Exception as e:
+        logger.error(f"Error in trade_aggregator evaluate: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+@router.get("/trade_aggregator/models/{agent_id}")
+async def get_trade_aggregator_models(
+    agent_id: int,
+    current_user: User = Depends(verify_authorization_admin)
+):
+    """Получение моделей Trade Aggregator для агента"""
+    try:
+        # Здесь должна быть логика получения моделей из БД
+        # Пока возвращаем заглушку
+        return {
+            "agent_id": agent_id,
+            "models": [],
+            "message": "Trade Aggregator models endpoint - implementation needed"
+        }
+        
+    except Exception as e:
+        logger.error(f"Error getting trade_aggregator models: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+@router.post("/trade_aggregator/predict")
+async def predict_trade_aggregator(
+    coin_id: int,
+    pred_time_signals: Optional[Dict] = None,
+    trade_time_signals: Optional[Dict] = None,
+    risk_signals: Optional[Dict] = None,
+    portfolio_state: Optional[Dict] = None,
+    extra_config: Optional[Dict] = None,
+    current_user: User = Depends(verify_authorization_admin)
+):
+    """Предсказание Trade Aggregator"""
+    try:
+        from core.services.trade_aggregator_service import TradeAggregatorService
+        
+        service = TradeAggregatorService()
+        result = service.predict(
+            str(coin_id), 
+            pred_time_signals, 
+            trade_time_signals, 
+            risk_signals, 
+            portfolio_state, 
+            extra_config
+        )
+        
+        return result
+        
+    except Exception as e:
+        logger.error(f"Error in trade_aggregator predict: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
 @router.post("/risk/evaluate")
 async def evaluate_risk(
     coin_id: int,
