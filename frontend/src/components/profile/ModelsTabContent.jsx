@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { FaInfoCircle, FaChartLine, FaExclamationTriangle } from 'react-icons/fa';
 import { listModels, trainModel, evaluateModel, getTaskStatus, promoteModel } from '../../services/mlService';
+import ModelTrainForm from '../ml/ModelTrainForm';
 
 const ModelsTabContent = () => {
   const [models, setModels] = useState([
@@ -67,7 +68,7 @@ const ModelsTabContent = () => {
   };
 
   return (
-    <div className="col-span-3">
+    <div className="col-span-3 space-y-6">
       <div className="bg-white rounded-lg shadow p-6">
         <div className="flex justify-between items-center mb-6">
           <h2 className="text-xl font-bold text-gray-800">Machine Learning Models</h2>
@@ -147,6 +148,8 @@ const ModelsTabContent = () => {
           </table>
         </div>
       </div>
+
+      <ModelTrainForm />
 
       {selectedModel && (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
