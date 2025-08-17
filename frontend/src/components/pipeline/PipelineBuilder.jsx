@@ -297,6 +297,16 @@ export default function PipelineBuilder() {
               <div className="w-full bg-gray-200 rounded h-2 overflow-hidden">
                 <div className="bg-blue-600 h-2" style={{ width: `${Math.min(100, task?.meta?.progress || 0)}%` }} />
               </div>
+              {task?.meta?.metrics && (
+                <div className="mt-2 text-xs bg-white p-3 rounded border">
+                  <div className="font-medium mb-1">Metrics</div>
+                  <div className="grid grid-cols-2 gap-2">
+                    {Object.entries(task.meta.metrics).map(([k,v]) => (
+                      <div key={k} className="flex justify-between"><span className="text-gray-600">{k}</span><span className="font-mono">{String(v)}</span></div>
+                    ))}
+                  </div>
+                </div>
+              )}
               {task?.meta && (
                 <pre className="mt-2 text-xs bg-white p-3 rounded border overflow-auto max-h-64">{JSON.stringify(task.meta, null, 2)}</pre>
               )}

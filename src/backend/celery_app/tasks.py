@@ -233,8 +233,20 @@ def train_news_task(self, coins: list[int] | None = None, config: dict | None = 
 @celery_app.task(bind=True)
 def evaluate_trade_aggregator_task(self, strategy_config: dict | None = None):
     try:
-        self.update_state(state='PROGRESS', meta={'progress': 100})
-        return {"status": "success", "metrics": {"Sharpe": None, "PnL": None}}
+        # Simulated orchestration progress and aggregate metrics
+        self.update_state(state='PROGRESS', meta={'progress': 10, 'message': 'Initializing pipeline...'})
+        cfg = strategy_config or {}
+        nodes = cfg.get('nodes', [])
+        edges = cfg.get('edges', [])
+        metrics = {
+            'nodes_count': len(nodes),
+            'edges_count': len(edges),
+            'Sharpe': 0.0,
+            'PnL': 0.0,
+        }
+        self.update_state(state='PROGRESS', meta={'progress': 50, 'message': 'Running pipeline...', 'metrics': metrics})
+        self.update_state(state='PROGRESS', meta={'progress': 100, 'message': 'Completed', 'metrics': metrics})
+        return {"status": "success", "metrics": metrics}
     except Exception as e:
         logger.exception("evaluate_trade_aggregator_task failed")
         return {"status": "error", "detail": str(e)}
