@@ -130,21 +130,35 @@ class Loader:
                 x, y, *rest = args
 
                 with autocast(device_type=self.device.type, enabled=effective_mp and (is_cuda or is_mps)):
-                # with torch.no_grad():
-                    
-                    # Передаём аргументы, ожидаемые конкретным агентом
-                    # AgentPredTime: model(x, time)
-                    # AgentTradeTime: model(x, x_pred, time)
-                    if agent.get_type() == "AgentTradeTime":
-                        x_pred = rest[0] if len(rest) > 0 else None
-                        t = rest[1] if len(rest) > 1 else None
-                        outputs = agent.trade([x, x_pred, t])
-                    else:
-                        t = rest[0] if len(rest) > 0 else None
-                        outputs = agent.trade([x, t])
+                    try:
+                        # Передаём аргументы, ожидаемые конкретным агентом
+                        # AgentPredTime: model(x, time)
+                        # AgentTradeTime: model(x, x_pred, time)
+                        if agent.get_type() == "AgentTradeTime":
+                            x_pred = rest[0] if len(rest) > 0 else None
+                            t = rest[1] if len(rest) > 1 else None
+                            outputs = agent.trade([x, x_pred, t])
+                        else:
+                            t = rest[0] if len(rest) > 0 else None
+                            outputs = agent.trade([x, t])
+                    except Exception as ex:
+                        # Диагностика форм входов
+                        def _shape(z):
+                            try:
+                                return tuple(z.shape)
+                            except Exception:
+                                return type(z).__name__
+                        x_sh = _shape(x)
+                        y_sh = _shape(y)
+                        r0_sh = _shape(rest[0]) if len(rest) > 0 and rest[0] is not None else None
+                        r1_sh = _shape(rest[1]) if len(rest) > 1 and rest[1] is not None else None
+                        raise RuntimeError(f"forward error [{agent.get_type()}]: x={x_sh}, y={y_sh}, extra1={r0_sh}, extra2={r1_sh} -> {ex}") from ex
                 
                     # print(outputs.shape, y.shape)
-                    loss = agent.loss_function(outputs, y)
+                    try:
+                        loss = agent.loss_function(outputs, y)
+                    except Exception as ex:
+                        raise RuntimeError(f"loss error: y_pred_shape={tuple(outputs.shape) if hasattr(outputs, 'shape') else type(outputs)}, y_true_shape={tuple(y.shape) if hasattr(y, 'shape') else type(y)} -> {ex}") from ex
                     # print(f"Output min: {outputs.min().item()}, max: {outputs.max().item()}") 
                 
                 assert torch.isnan(loss).sum() == 0, "Найдены NaN в loss"
