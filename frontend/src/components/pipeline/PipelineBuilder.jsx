@@ -1,7 +1,7 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import ReactFlow, { Background, Controls, addEdge, MiniMap, ReactFlowProvider, useReactFlow } from 'reactflow';
 import 'reactflow/dist/style.css';
-import { savePipeline, runPipeline, loadPipeline, stopPipelineTask } from '../../services/pipelineService';
+import { savePipeline, runPipeline, loadPipeline, stopPipelineTask, listBacktests, getBacktest } from '../../services/pipelineService';
 import { getTaskStatus } from '../../services/mlService';
 
 export default function PipelineBuilder() {
@@ -54,6 +54,12 @@ export default function PipelineBuilder() {
   const copyToClipboard = useCallback(async (text) => {
     try { await navigator.clipboard.writeText(text); alert('Скопировано в буфер обмена'); } catch (e) { console.error(e); }
   }, []);
+  const [backtests, setBacktests] = useState([]);
+  const [showBacktests, setShowBacktests] = useState(false);
+  const refreshBacktests = useCallback(async ()=>{
+    try { const data = await listBacktests(); setBacktests(data || []); } catch(e){ console.error(e);} 
+  }, []);
+  useEffect(() => { refreshBacktests(); }, [refreshBacktests]);
 
   // Simple palette / editor state
   const NODE_TYPES = useMemo(() => ['DataSource','Indicators','News','Pred_time','Trade_time','Risk','Trade','Metrics'], []);
@@ -251,6 +257,7 @@ export default function PipelineBuilder() {
               Импорт
               <input key={importInputKey} type="file" accept="application/json" className="hidden" onChange={onImportFile} />
             </label>
+            <button onClick={()=>{ setShowBacktests(v=>!v); if(!showBacktests) refreshBacktests(); }} className="px-4 py-2 rounded-md font-medium bg-gray-100 hover:bg-gray-200">История</button>
           </div>
         </div>
 
@@ -415,6 +422,39 @@ export default function PipelineBuilder() {
             </div>
           </div>
         </div>
+
+        {showBacktests && (
+          <div className="p-4 bg-gray-50 rounded-lg">
+            <div className="flex items-center justify-between mb-2">
+              <div className="text-sm font-medium text-gray-800">История бэктестов</div>
+              <button onClick={refreshBacktests} className="px-2 py-1 text-xs border rounded bg-white hover:bg-gray-100">Обновить</button>
+            </div>
+            <div className="overflow-x-auto">
+              <table className="min-w-full text-xs border rounded">
+                <thead className="bg-gray-100">
+                  <tr>
+                    <th className="px-2 py-1 text-left">id</th>
+                    <th className="px-2 py-1 text-left">created_at</th>
+                    <th className="px-2 py-1 text-left">timeframe</th>
+                    <th className="px-2 py-1 text-left">metrics</th>
+                    <th className="px-2 py-1 text-left">artifacts</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {backtests.map(bt => (
+                    <tr key={bt.id} className="odd:bg-white even:bg-gray-50">
+                      <td className="px-2 py-1">{bt.id}</td>
+                      <td className="px-2 py-1">{bt.created_at}</td>
+                      <td className="px-2 py-1">{bt.timeframe}</td>
+                      <td className="px-2 py-1"><code className="break-all">{bt.metrics_json ? JSON.stringify(bt.metrics_json) : ''}</code></td>
+                      <td className="px-2 py-1"><code className="break-all">{bt.artifacts ? JSON.stringify(bt.artifacts) : ''}</code></td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        )}
 
         {taskId && (
           <div className="p-4 bg-gray-50 rounded-lg">

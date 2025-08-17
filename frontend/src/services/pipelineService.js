@@ -28,4 +28,16 @@ export const stopPipelineTask = async (taskId) => {
   return response.data;
 };
 
+export const listBacktests = async () => {
+  const response = await api.get('/pipeline/backtests');
+  if (response.status !== 200) throw new Error('Ошибка получения истории бэктестов');
+  return response.data;
+};
+
+export const getBacktest = async (id) => {
+  const response = await api.get(`/pipeline/backtests/${id}`);
+  if (response.status !== 200) throw new Error('Ошибка получения бэктеста');
+  return response.data;
+};
+
 
