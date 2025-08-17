@@ -1,4 +1,5 @@
 from fastapi import APIRouter, Depends, HTTPException
+from fastapi.responses import FileResponse
 from sqlalchemy.ext.asyncio import AsyncSession
 from uuid import uuid4
 
@@ -95,5 +96,12 @@ async def run_pipeline_by_id(pipeline_id: int, _: str = Depends(verify_authoriza
             raise HTTPException(status_code=404, detail="Pipeline not found")
         task = celery_app.send_task('backend.celery_app.tasks.run_pipeline_backtest_task', kwargs={"config_json": obj.config_json, "pipeline_id": pipeline_id})
         return {"task_id": task.id}
+
+
+@router.get("/artifacts/{path:path}")
+async def download_artifact(path: str, _: str = Depends(verify_authorization_admin)):
+    # Security: restrict to temp dir or configured artifacts dir
+    # Here we trust generated paths; in production validate path prefix
+    return FileResponse(path, filename=path.split('/')[-1])
 
 

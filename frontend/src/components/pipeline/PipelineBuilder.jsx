@@ -487,13 +487,13 @@ export default function PipelineBuilder() {
                       {task.meta.metrics.artifacts.equity_csv && (
                         <div className="flex items-center justify-between text-[11px] break-all">
                           <span className="text-gray-600 mr-2">equity_csv:</span>
-                          <span className="font-mono">{task.meta.metrics.artifacts.equity_csv}</span>
+                          <a href={`/pipeline/artifacts/${encodeURIComponent(task.meta.metrics.artifacts.equity_csv)}`} target="_blank" rel="noreferrer" className="font-mono text-blue-600 hover:underline">{task.meta.metrics.artifacts.equity_csv}</a>
                         </div>
                       )}
                       {task.meta.metrics.artifacts.trades_csv && (
                         <div className="flex items-center justify-between text-[11px] break-all mt-1">
                           <span className="text-gray-600 mr-2">trades_csv:</span>
-                          <span className="font-mono">{task.meta.metrics.artifacts.trades_csv}</span>
+                          <a href={`/pipeline/artifacts/${encodeURIComponent(task.meta.metrics.artifacts.trades_csv)}`} target="_blank" rel="noreferrer" className="font-mono text-blue-600 hover:underline">{task.meta.metrics.artifacts.trades_csv}</a>
                         </div>
                       )}
                       <div className="mt-2 flex gap-2">
