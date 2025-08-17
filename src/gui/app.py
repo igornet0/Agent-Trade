@@ -18,6 +18,7 @@ for p in (str(SRC_ROOT), str(PROJECT_ROOT)):
 # core and models
 from core import data_helper
 from Dataset import DatasetTimeseries, LoaderTimeLine
+from Dataset.indicators import Indicators
 from MMM import AgentManager
 from train_models.loader import Loader as TrainLoader
 
@@ -138,6 +139,37 @@ with st.sidebar:
     selected_coins = st.multiselect("Монеты", options=coins, default=coins[:3])
     window = st.slider("Окно последовательности", 20, 200, 50, 5)
 
+    # Общие параметры модели
+    pred_len = st.slider("Длина предсказания (pred_len)", 1, 30, 5, 1)
+
+    # Индикаторы для Pred/Trade
+    st.subheader("Индикаторы")
+    indicator_names = list(Indicators.indicators_input.keys())
+    selected_inds = st.multiselect("Выберите индикаторы", options=indicator_names, default=["SMA", "EMA"])
+    indecaters_cfg: dict[str, dict] = {}
+    if selected_inds:
+        for name in selected_inds:
+            args = Indicators.indicators_input.get(name, {})
+            with st.expander(f"{name} параметры"):
+                cfg = {}
+                for arg, arg_type in args.items():
+                    key = f"{name}_{arg}"
+                    if arg_type == "int":
+                        cfg[arg] = st.number_input(f"{name}.{arg}", min_value=1, max_value=500, value=14, step=1, key=key)
+                    elif arg_type == "str":
+                        cfg[arg] = st.selectbox(f"{name}.{arg}", options=["close", "open", "max", "min", "volume"], index=0, key=key)
+                    else:
+                        cfg[arg] = st.text_input(f"{name}.{arg}", value="", key=key)
+                indecaters_cfg[name] = cfg
+
+    # Специфичные параметры для AgentTradeTime
+    trade_params = {}
+    if agent_type == "AgentTradeTime":
+        st.subheader("Параметры обучения TradeTime")
+        trade_params["huber_delta"] = st.slider("Huber delta", 0.1, 2.0, 0.7, 0.1)
+        trade_params["proffit_preddict_for_buy"] = st.slider("Порог прибыли для BUY", 0.1, 5.0, 0.9, 0.1)
+        trade_params["proffit_preddict_for_sell"] = st.slider("Порог движения для SELL", 0.1, 5.0, 0.9, 0.1)
+
     st.subheader("Обучение")
     epochs = st.slider("Эпохи", 1, 100, 10)
     batch_size = st.selectbox("Batch size", [16, 32, 64], index=1)
@@ -205,19 +237,20 @@ with tab_train:
             with st.spinner("Готовим данные и агент..."):
                 try:
                     # Конфиг формируется из моделей в data_helper при необходимости, здесь берём дефолт
-                    config = {
-                        "agents": [
-                            {
-                                "type": agent_type,
-                                "name": f"{agent_type}_{timeframe}",
-                                "indecaters": {},
-                                "timetravel": timeframe,
-                                "model_parameters": {"seq_len": window, "pred_len": 5},
-                                "data_normalize": True,
-                                "mod": "train",
-                            }
-                        ]
+                    model_params = {"seq_len": window, "pred_len": int(pred_len)}
+                    config_agent = {
+                        "type": agent_type,
+                        "name": f"{agent_type}_{timeframe}",
+                        "indecaters": indecaters_cfg,
+                        "timetravel": timeframe,
+                        "model_parameters": model_params,
+                        "data_normalize": True,
+                        "mod": "train",
                     }
+                    if agent_type == "AgentTradeTime":
+                        config_agent["proffit_preddict_for_buy"] = float(trade_params["proffit_preddict_for_buy"]) 
+                        config_agent["proffit_preddict_for_sell"] = float(trade_params["proffit_preddict_for_sell"]) 
+                    config = {"agents": [config_agent]}
 
                     am = AgentManager(config=config, count_agents=1)
                     agent = am.get_agents()
@@ -228,8 +261,12 @@ with tab_train:
                     except Exception:
                         pth_path = None
 
-                    loaders = build_timeline_loaders(selected_coins, timeframe, window)
-                    if not loaders:
+                    if agent_type == "AgentNews":
+                        st.info("Обучение новостного агента использует размеченные новости из БД и не зависит от монет. Этот этап будет добавлен в отдельном таске.")
+                        loaders = []
+                    else:
+                        loaders = build_timeline_loaders(selected_coins, timeframe, window)
+                    if agent_type != "AgentNews" and not loaders:
                         st.error("Не удалось подготовить данные. Проверьте data/processed")
                     else:
                         trainer = TrainLoader(agent_type=agent_type, model_type="MMM")
@@ -237,7 +274,7 @@ with tab_train:
                         # (Loader читает из data_helper конфиг по имени, поэтому обучим напрямую _train_single_agent)
                         history = trainer._train_single_agent(
                             agent=agent,
-                            loaders=loaders,
+                            loaders=loaders if loaders else [],
                             epochs=epochs,
                             batch_size=batch_size,
                             base_lr=lr,

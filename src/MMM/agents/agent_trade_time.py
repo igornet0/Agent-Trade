@@ -74,7 +74,8 @@ class AgentTradeTime(Agent):
                             patience):
 
         # self.criterion = nn.CrossEntropyLoss()
-        self.criterion = self.criterion(delta=0.7)
+        delta = self.model_parameters.get("huber_delta", 0.7)
+        self.criterion = self.criterion(delta=delta)
 
         # Оптимизатор и планировщик
         optimizer = torch.optim.AdamW(
