@@ -12,6 +12,7 @@ from core.database.orm.market import (
     orm_get_timeseries_by_coin as market_get_ts,
     orm_get_data_timeseries as market_get_data,
 )
+from core.utils.metrics import equity_curve, max_drawdown, sharpe_ratio, sortino_ratio
 from core.database.orm_query import (
     orm_get_agent_by_id,
     orm_get_train_agent,
@@ -390,6 +391,10 @@ def run_pipeline_backtest_task(self, config_json: dict | None = None, timeframe:
 
             # 8) Metrics
             step(8, *steps[7])
+            eq = equity_curve([rets[i-1] * signals[i-1] * risk_cap for i in range(1, len(closes))], start_equity=1.0)
+            mdd = max_drawdown(eq)
+            sortino = sortino_ratio([rets[i-1] * signals[i-1] * risk_cap for i in range(1, len(closes))])
+
             metrics.update({
                 'bars': len(closes),
                 'sma_period': sma_period,
@@ -397,6 +402,8 @@ def run_pipeline_backtest_task(self, config_json: dict | None = None, timeframe:
                 'PnL': round(pnl, 6),
                 'WinRate': round(winrate, 4),
                 'Sharpe': round(sharpe, 4),
+                'Sortino': round(sortino, 4),
+                'MaxDrawdown': round(mdd, 6),
                 'timeframe': tf,
             })
             self.update_state(state='SUCCESS', meta={'progress': 100, 'message': 'Готово', 'metrics': metrics})
