@@ -276,7 +276,10 @@ class Agent:
 
         for indecater_name, params in self.get_indecaters().items():
             base_name = indecater_name.split('#', 1)[0]
-            data = Indicators.calculate_normalized(base_name, data.copy(), **params)
+            try:
+                data = Indicators.calculate_normalized(base_name, data.copy(), **params)
+            except Exception as e:
+                raise ValueError(f"Indicator normalize failed: {indecater_name} ({base_name}) with params={params}: {e}")
 
         data['close'] = (data['close'] - data['open']) / data['open'] * 100
         data['max'] = (data['max'] - data['open']) / data['open'] * 100
@@ -291,7 +294,10 @@ class Agent:
         new_data = data.copy()
         for indecater_name, params in self.get_indecaters().items():
             base_name = indecater_name.split('#', 1)[0]
-            new_data = Indicators.calculate(base_name, new_data, **params)
+            try:
+                new_data = Indicators.calculate(base_name, new_data, **params)
+            except Exception as e:
+                raise ValueError(f"Indicator calculate failed: {indecater_name} ({base_name}) with params={params}: {e}")
 
         if self.data_normalize:
             new_data = self.normalize_data(new_data)

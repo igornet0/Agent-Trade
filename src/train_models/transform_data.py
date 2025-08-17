@@ -45,10 +45,18 @@ class BatchGenerator:
                     if len(sample) == 3:
                         # (x, y, time)
                         s_x, s_y, s_t = sample
+                        # Ensure arrays
+                        s_x = np.asarray(s_x)
+                        s_y = np.asarray(s_y)
+                        s_t = np.asarray(s_t)
                         s_e1, s_e2 = s_t, None
                     elif len(sample) == 4:
                         # (x, y, x_pred, time) в нашей create_time_line_loader порядок (x, y, x_pred, time)
                         s_x, s_y, s_e1, s_e2 = sample
+                        s_x = np.asarray(s_x)
+                        s_y = np.asarray(s_y)
+                        s_e1 = np.asarray(s_e1)
+                        s_e2 = np.asarray(s_e2)
                     else:
                         continue
                     try:

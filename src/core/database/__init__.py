@@ -21,5 +21,3 @@ from core.database.models import (User, Coin, Timeseries,
                                   Strategy, StrategyCoin, StrategyAgent, AgentTrain,
                                   TrainCoin, AgentFeature, AgentType,
                                   ModelType, AgentFeatureValue)
-
-from core.database.orm_query import *
