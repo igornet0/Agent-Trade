@@ -1,0 +1,107 @@
+groups:
+- name: ml-trading-system
+  rules:
+  # API Response Time Alerts
+  - alert: HighResponseTime
+    expr: histogram_quantile(0.95, rate(http_request_duration_seconds_bucket[5m])) > 2
+    for: 2m
+    labels:
+      severity: warning
+    annotations:
+      summary: "High API response time"
+      description: "95th percentile response time is {{ $value }}s"
+
+  - alert: CriticalResponseTime
+    expr: histogram_quantile(0.95, rate(http_request_duration_seconds_bucket[5m])) > 5
+    for: 1m
+    labels:
+      severity: critical
+    annotations:
+      summary: "Critical API response time"
+      description: "95th percentile response time is {{ $value }}s"
+
+  # Error Rate Alerts
+  - alert: HighErrorRate
+    expr: rate(http_requests_total{status=~"5.."}[5m]) > 0.1
+    for: 2m
+    labels:
+      severity: warning
+    annotations:
+      summary: "High error rate"
+      description: "Error rate is {{ $value }} errors per second"
+
+  - alert: CriticalErrorRate
+    expr: rate(http_requests_total{status=~"5.."}[5m]) > 0.5
+    for: 1m
+    labels:
+      severity: critical
+    annotations:
+      summary: "Critical error rate"
+      description: "Error rate is {{ $value }} errors per second"
+
+  # ML Training Alerts
+  - alert: MLTrainingFailure
+    expr: increase(ml_model_train_total{status="failure"}[5m]) > 0
+    for: 1m
+    labels:
+      severity: warning
+    annotations:
+      summary: "ML training failure"
+      description: "ML model training failed"
+
+  - alert: MLTrainingDurationHigh
+    expr: histogram_quantile(0.95, rate(ml_train_duration_seconds_bucket[5m])) > 3600
+    for: 5m
+    labels:
+      severity: warning
+    annotations:
+      summary: "ML training taking too long"
+      description: "95th percentile training duration is {{ $value }}s"
+
+  # System Resource Alerts
+  - alert: HighCPUUsage
+    expr: 100 - (avg by (instance) (irate(node_cpu_seconds_total{mode="idle"}[5m])) * 100) > 80
+    for: 5m
+    labels:
+      severity: warning
+    annotations:
+      summary: "High CPU usage"
+      description: "CPU usage is {{ $value }}%"
+
+  - alert: HighMemoryUsage
+    expr: (node_memory_MemTotal_bytes - node_memory_MemAvailable_bytes) / node_memory_MemTotal_bytes * 100 > 85
+    for: 5m
+    labels:
+      severity: warning
+    annotations:
+      summary: "High memory usage"
+      description: "Memory usage is {{ $value }}%"
+
+  # Celery Worker Alerts
+  - alert: CeleryWorkerDown
+    expr: celery_workers_online < 1
+    for: 1m
+    labels:
+      severity: critical
+    annotations:
+      summary: "No Celery workers online"
+      description: "All Celery workers are down"
+
+  - alert: HighCeleryQueue
+    expr: celery_tasks_active > 100
+    for: 5m
+    labels:
+      severity: warning
+    annotations:
+      summary: "High Celery queue"
+      description: "{{ $value }} tasks in queue"
+
+  # Database Alerts
+  - alert: DatabaseConnectionsHigh
+    expr: pg_stat_database_numbackends > 50
+    for: 5m
+    labels:
+      severity: warning
+    annotations:
+      summary: "High database connections"
+      description: "{{ $value }} active database connections"
