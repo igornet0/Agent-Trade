@@ -270,6 +270,7 @@ class PredTimeService:
         y = np.array(y)
         
         # Feature scaling
+        scaler = None
         if self.config['feature_scaling'] == 'standard':
             from sklearn.preprocessing import StandardScaler
             scaler = StandardScaler()
@@ -282,6 +283,7 @@ class PredTimeService:
             X_reshaped = X.reshape(-1, X.shape[-1])
             X_scaled = scaler.fit_transform(X_reshaped)
             X = X_scaled.reshape(X.shape)
+        # If feature_scaling is None or any other value, no scaling is applied
         
         # Save scaler for inference
         self.scaler = scaler

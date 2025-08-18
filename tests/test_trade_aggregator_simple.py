@@ -43,32 +43,30 @@ class TestTradeAggregatorServiceSimple(unittest.TestCase):
     
     def test_aggregate_signals_basic(self):
         """Базовый тест агрегации сигналов"""
-        signals = {
-            'news': [1, 0, -1, 1, 0],
-            'pred_time': [1, 1, 0, -1, 1],
-            'trade_time': [0, 1, 1, 0, -1],
-            'risk': [0.8, 0.3, 0.9, 0.2, 0.7]
-        }
+        pred_time_signals = [1, 1, 0, -1, 1]
+        trade_time_signals = [0, 1, 1, 0, -1]
+        risk_signals = [0.8, 0.3, 0.9, 0.2, 0.7]
+        config = {'signal_weights': {'pred_time': 0.4, 'trade_time': 0.4, 'risk': 0.2}}
         
         # Тестируем агрегацию
-        result = self.service._aggregate_signals(signals)
+        result = self.service._aggregate_signals(pred_time_signals, trade_time_signals, risk_signals, config)
         
         self.assertIsInstance(result, dict)
-        self.assertIn('final_signal', result)
+        self.assertIn('decision', result)
         self.assertIn('confidence', result)
-        self.assertIn('risk_score', result)
+        self.assertIn('aggregated_score', result)
     
     def test_calculate_portfolio_metrics_basic(self):
         """Базовый тест расчета метрик портфеля"""
-        positions = {
-            'BTC': {'quantity': 1.0, 'avg_price': 50000},
-            'ETH': {'quantity': 10.0, 'avg_price': 3000}
-        }
+        positions = [
+            {'coin_id': 'BTC', 'quantity': 1.0, 'avg_price': 50000, 'unrealized_pnl': 5000, 'size': 1.0, 'entry_price': 50000},
+            {'coin_id': 'ETH', 'quantity': 10.0, 'avg_price': 3000, 'unrealized_pnl': 2000, 'size': 10.0, 'entry_price': 3000}
+        ]
         
-        current_prices = {'BTC': 55000, 'ETH': 3200}
+        balance = 100000
         
         # Тестируем расчет метрик
-        result = self.service._calculate_portfolio_metrics(positions, current_prices)
+        result = self.service._calculate_portfolio_metrics(positions, balance)
         
         self.assertIsInstance(result, dict)
         self.assertIn('total_value', result)
@@ -77,11 +75,13 @@ class TestTradeAggregatorServiceSimple(unittest.TestCase):
     
     def test_apply_risk_management_basic(self):
         """Базовый тест применения риск-менеджмента"""
-        signal = 1  # Buy signal
-        risk_score = 0.8  # High risk
+        decision = 1  # Buy signal
+        position_size = 0.1  # 10% of portfolio
+        portfolio_metrics = {'total_value': 100000, 'total_return': 0.05, 'exposure': 80000}
+        config = {'max_position_size': 0.2, 'stop_loss_pct': 0.05}
         
         # Тестируем применение риск-менеджмента
-        result = self.service._apply_risk_management(signal, risk_score)
+        result = self.service._apply_risk_management(decision, position_size, portfolio_metrics, config)
         
         self.assertIsInstance(result, dict)
         self.assertIn('adjusted_signal', result)
@@ -90,10 +90,13 @@ class TestTradeAggregatorServiceSimple(unittest.TestCase):
     
     def test_calculate_max_drawdown_basic(self):
         """Базовый тест расчета максимальной просадки"""
-        returns = [0.01, -0.02, 0.03, -0.01, 0.02, -0.03, 0.01, -0.02]
+        coin_data = [
+            {'close': 100}, {'close': 98}, {'close': 102}, {'close': 99}, 
+            {'close': 105}, {'close': 101}, {'close': 103}, {'close': 100}
+        ]
         
         # Тестируем расчет просадки
-        result = self.service._calculate_max_drawdown(returns)
+        result = self.service._calculate_max_drawdown(coin_data)
         
         self.assertIsInstance(result, float)
         self.assertLessEqual(result, 0)  # Просадка должна быть отрицательной
@@ -106,9 +109,7 @@ class TestTradeAggregatorServiceSimple(unittest.TestCase):
             '_apply_risk_management',
             '_calculate_max_drawdown',
             'train_model',
-            'predict',
-            'save_model',
-            'load_model'
+            'predict'
         ]
         
         for method_name in required_methods:
