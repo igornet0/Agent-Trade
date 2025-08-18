@@ -775,11 +775,7 @@ def evaluate_news_task(self, config: dict):
         return {"status": "error", "detail": str(e)}
 
 
-@celery_app.task(bind=True)
-def evaluate_trade_aggregator_task(self, config: dict):
-    """Evaluate Trade aggregator model"""
-    # Placeholder for Trade model evaluation
-    return {"status": "success", "message": "Trade model evaluation completed"}
+
 
 
 @celery_app.task(bind=True)

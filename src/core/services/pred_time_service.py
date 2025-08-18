@@ -114,6 +114,45 @@ class PredTimeService:
         
         self.news_service = NewsBackgroundService()
     
+    def _get_news_background_for_window(self, coin_id: int, start_time: pd.Timestamp, end_time: pd.Timestamp) -> List[Dict[str, Any]]:
+        """Get news background data for a specific time window"""
+        try:
+            # Convert pandas timestamps to datetime objects
+            start_dt = start_time.to_pydatetime()
+            end_dt = end_time.to_pydatetime()
+            
+            # Use synchronous wrapper for news service
+            async def get_news_async():
+                from core.database import db_helper
+                async with db_helper.get_session() as session:
+                    return await self.news_service.get_background_history(
+                        session=session,
+                        coin_id=coin_id,
+                        start_time=start_dt,
+                        end_time=end_dt,
+                        limit=100
+                    )
+            
+            # Run async function synchronously
+            import asyncio
+            try:
+                loop = asyncio.get_event_loop()
+                if loop.is_running():
+                    # If we're already in an async context, use asyncio.create_task
+                    import concurrent.futures
+                    with concurrent.futures.ThreadPoolExecutor() as executor:
+                        future = executor.submit(asyncio.run, get_news_async())
+                        return future.result()
+                else:
+                    return asyncio.run(get_news_async())
+            except RuntimeError:
+                # No event loop, create new one
+                return asyncio.run(get_news_async())
+                
+        except Exception as e:
+            logger.debug(f"Failed to get news background for window {start_time} - {end_time}: {e}")
+            return []
+    
     def _calculate_technical_indicators(self, df: pd.DataFrame) -> pd.DataFrame:
         """Calculate technical indicators for the dataset"""
         df = df.copy()
@@ -171,11 +210,28 @@ class PredTimeService:
                 # Get news background for the coin
                 news_scores = []
                 for timestamp in df.index:
-                    # Try to get news background for this timestamp
-                    # For now, use a simple approach - could be enhanced with proper time alignment
-                    news_scores.append(0.0)  # Placeholder
+                    try:
+                        # Try to get news background for this timestamp
+                        # Use proper time alignment with window-based approach
+                        window_start = timestamp - pd.Timedelta(hours=24)  # 24-hour window
+                        window_end = timestamp
+                        
+                        # Get news background data for the time window
+                        news_data = self._get_news_background_for_window(coin_id, window_start, window_end)
+                        
+                        if news_data and len(news_data) > 0:
+                            # Calculate average score for the window
+                            avg_score = np.mean([item.get('score', 0.0) for item in news_data])
+                            news_scores.append(avg_score)
+                        else:
+                            news_scores.append(0.0)  # No news data available
+                            
+                    except Exception as e:
+                        logger.debug(f"Failed to get news for timestamp {timestamp}: {e}")
+                        news_scores.append(0.0)  # Fallback to neutral score
                 
                 df['news_score'] = news_scores
+                
             except Exception as e:
                 logger.warning(f"Failed to integrate news features for coin {coin_id}: {e}")
                 df['news_score'] = 0.0
