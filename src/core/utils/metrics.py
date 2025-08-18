@@ -1,6 +1,8 @@
 from __future__ import annotations
 
 import math
+import numpy as np
+import pandas as pd
 from typing import Iterable, List, Sequence, Tuple, Dict, Any
 
 
@@ -439,6 +441,74 @@ def calculate_trading_metrics(returns: Sequence[float], positions: Sequence[floa
             metrics["num_trades"] = len(trades)
     
     return metrics
+
+
+def calculate_technical_indicators(df: pd.DataFrame) -> pd.DataFrame:
+    """
+    Calculate technical indicators for trading analysis
+    
+    Args:
+        df: DataFrame with OHLCV data
+        
+    Returns:
+        DataFrame with technical indicators added
+    """
+    if df.empty:
+        return df
+    
+    df = df.copy()
+    
+    # Basic indicators
+    df['sma_5'] = df['close'].rolling(window=5).mean()
+    df['sma_20'] = df['close'].rolling(window=20).mean()
+    df['ema_12'] = df['close'].ewm(span=12).mean()
+    df['ema_26'] = df['close'].ewm(span=26).mean()
+    
+    # RSI
+    delta = df['close'].diff()
+    gain = (delta.where(delta > 0, 0)).rolling(window=14).mean()
+    loss = (-delta.where(delta < 0, 0)).rolling(window=14).mean()
+    rs = gain / loss
+    df['rsi'] = 100 - (100 / (1 + rs))
+    
+    # MACD
+    df['macd'] = df['ema_12'] - df['ema_26']
+    df['macd_signal'] = df['macd'].ewm(span=9).mean()
+    df['macd_histogram'] = df['macd'] - df['macd_signal']
+    
+    # Bollinger Bands
+    df['bb_middle'] = df['close'].rolling(window=20).mean()
+    bb_std = df['close'].rolling(window=20).std()
+    df['bb_upper'] = df['bb_middle'] + (bb_std * 2)
+    df['bb_lower'] = df['bb_middle'] - (bb_std * 2)
+    df['bb_width'] = (df['bb_upper'] - df['bb_lower']) / df['bb_middle']
+    df['bb_position'] = (df['close'] - df['bb_lower']) / (df['bb_upper'] - df['bb_lower'])
+    
+    # Volume indicators
+    df['volume_sma'] = df['volume'].rolling(window=20).mean()
+    df['volume_ratio'] = df['volume'] / df['volume_sma']
+    
+    # Price momentum and volatility
+    df['price_change'] = df['close'].pct_change()
+    df['price_change_5'] = df['close'].pct_change(periods=5)
+    df['price_change_20'] = df['close'].pct_change(periods=20)
+    df['volatility'] = df['close'].rolling(window=20).std()
+    df['volatility_ratio'] = df['volatility'] / df['close']
+    
+    # ATR (Average True Range)
+    high_low = df['high'] - df['low']
+    high_close = np.abs(df['high'] - df['close'].shift())
+    low_close = np.abs(df['low'] - df['close'].shift())
+    true_range = np.maximum(high_low, np.maximum(high_close, low_close))
+    df['atr'] = true_range.rolling(window=14).mean()
+    df['atr_ratio'] = df['atr'] / df['close']
+    
+    # Additional indicators
+    df['price_range'] = (df['high'] - df['low']) / df['close']
+    df['price_range_5'] = df['price_range'].rolling(window=5).mean()
+    df['price_range_20'] = df['price_range'].rolling(window=20).mean()
+    
+    return df
 
 
 if __name__ == "__main__":

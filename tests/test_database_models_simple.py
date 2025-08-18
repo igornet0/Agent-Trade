@@ -194,5 +194,5 @@ def main():
 
 
 if __name__ == '__main__':
-    success = main()
-    assert success, "Database models simple tests failed"
+    exit_code = main()
+    assert exit_code == 0, "Database models simple tests failed"

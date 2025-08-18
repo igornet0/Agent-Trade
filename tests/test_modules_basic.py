@@ -221,5 +221,5 @@ def main():
         return 1
 
 if __name__ == '__main__':
-    success = main()
-    assert success, "Modules basic tests failed"
+    exit_code = main()
+    assert exit_code == 0, "Modules basic tests failed"
