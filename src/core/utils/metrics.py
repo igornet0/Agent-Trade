@@ -402,7 +402,7 @@ def calculate_risk_metrics(returns: Sequence[float], positions: Sequence[float] 
         "var": value_at_risk(returns, confidence),
         "expected_shortfall": expected_shortfall(returns, confidence),
         "max_drawdown": max_drawdown(equity_curve(returns)),
-        "volatility": math.sqrt(sum((r - sum(returns)/len(returns))**2 / len(returns)) if returns else 0.0)
+        "volatility": math.sqrt(sum((r - sum(returns)/len(returns))**2 for r in returns) / len(returns)) if returns else 0.0
     }
     
     if positions:
@@ -424,7 +424,7 @@ def calculate_trading_metrics(returns: Sequence[float], positions: Sequence[floa
         "sortino_ratio": sortino_ratio(returns),
         "win_rate": win_rate(returns),
         "max_drawdown": max_drawdown(equity_curve(returns)),
-        "volatility": math.sqrt(sum((r - sum(returns)/len(returns))**2 / len(returns)) if returns else 0.0)
+        "volatility": math.sqrt(sum((r - sum(returns)/len(returns))**2 for r in returns) / len(returns)) if returns else 0.0
     }
     
     if positions:

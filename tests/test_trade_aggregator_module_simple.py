@@ -1,20 +1,20 @@
 #!/usr/bin/env python3
 """
-Упрощенные тесты для Trade Aggregator модуля без PyTorch зависимостей
+Упрощенные тесты для Trade Aggregator Module без PyTorch зависимостей
 """
 
 import unittest
 import sys
 import os
-from unittest.mock import Mock, patch, MagicMock
-import pandas as pd
 import numpy as np
+import pandas as pd
+from unittest.mock import Mock, patch, MagicMock
 
 # Добавляем путь к модулям
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', 'src'))
 
-class TestTradeAggregatorServiceSimple(unittest.TestCase):
-    """Упрощенные тесты для TradeAggregatorService без PyTorch"""
+class TestTradeAggregatorModuleSimple(unittest.TestCase):
+    """Упрощенные тесты для Trade Aggregator Module"""
     
     def setUp(self):
         """Настройка тестов"""
@@ -26,7 +26,7 @@ class TestTradeAggregatorServiceSimple(unittest.TestCase):
             except ImportError as e:
                 self.skipTest(f"TradeAggregatorService недоступен: {e}")
         
-        # Мок данные
+        # Мок данных
         self.mock_df = pd.DataFrame({
             'timestamp': pd.date_range('2025-01-01', periods=100, freq='1h'),
             'open': np.random.uniform(100, 200, 100),
@@ -114,17 +114,37 @@ class TestTradeAggregatorServiceSimple(unittest.TestCase):
         for method_name in required_methods:
             self.assertTrue(hasattr(self.service, method_name), 
                           f"Метод {method_name} отсутствует")
+    
+    def test_data_processing_basic(self):
+        """Базовый тест обработки данных"""
+        # Тестируем обработку данных
+        self.assertIsInstance(self.mock_df, pd.DataFrame)
+        self.assertEqual(len(self.mock_df), 100)
+        self.assertIn('close', self.mock_df.columns)
+        self.assertIn('volume', self.mock_df.columns)
+    
+    def test_model_operations_basic(self):
+        """Базовый тест операций с моделями"""
+        # Тестируем операции с моделями (без реального обучения)
+        try:
+            # Проверяем, что методы существуют
+            self.assertTrue(hasattr(self.service, 'train_model'))
+            self.assertTrue(hasattr(self.service, 'predict'))
+            self.assertTrue(hasattr(self.service, 'save_model'))
+            self.assertTrue(hasattr(self.service, 'load_model'))
+        except Exception as e:
+            self.skipTest(f"Операции с моделями недоступны: {e}")
 
 def main():
     """Запуск тестов"""
-    print("🧪 Запуск упрощенных тестов Trade Aggregator модуля...")
+    print("🧪 Запуск упрощенных тестов Trade Aggregator Module...")
     
     # Создаем тестовый набор
     test_suite = unittest.TestSuite()
     
     # Добавляем тесты
     loader = unittest.TestLoader()
-    test_suite.addTest(loader.loadTestsFromTestCase(TestTradeAggregatorServiceSimple))
+    test_suite.addTest(loader.loadTestsFromTestCase(TestTradeAggregatorModuleSimple))
     
     # Запускаем тесты
     runner = unittest.TextTestRunner(verbosity=2)
@@ -144,4 +164,4 @@ def main():
 
 if __name__ == '__main__':
     exit_code = main()
-    assert exit_code == 0, "Trade aggregator simple tests failed"
+    assert exit_code == 0, "Trade aggregator module simple tests failed"
