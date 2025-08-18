@@ -6,7 +6,7 @@ services:
       context: .
       dockerfile: Dockerfile
     env_file:
-      - settings/local.env
+      - settings/dev.env
     ports:
       - "8000:8000"
     depends_on:
@@ -16,7 +16,12 @@ services:
     networks:
       - monitor
     command: python run_app_simple.py
-    restart: unless-stopped
+    volumes:
+      - .:/app
+      - /app/__pycache__
+    environment:
+      - PYTHONPATH=/app/src
+      - NODE_ENV=development
 
   # Celery Worker
   celery:
@@ -25,27 +30,38 @@ services:
       dockerfile: Dockerfile
     command: celery -A src.backend.celery_app.create_app.celery_app worker -l INFO
     env_file:
-      - settings/local.env
+      - settings/dev.env
     depends_on:
       - redis
       - postgres
       - rabbitmq
     networks:
       - monitor
-    restart: unless-stopped
+    volumes:
+      - .:/app
+      - /app/__pycache__
+    environment:
+      - PYTHONPATH=/app/src
+      - NODE_ENV=development
 
-  # Frontend Production Build
+  # Frontend Development Server
   frontend:
     build:
       context: ./frontend
-      dockerfile: Dockerfile.prod
+      dockerfile: Dockerfile.dev
     ports:
-      - "80:80"
+      - "5173:5173"
+    volumes:
+      - ./frontend:/app
+      - /app/node_modules
+    environment:
+      - NODE_ENV=development
+      - VITE_API_URL=http://localhost:8000
     networks:
       - monitor
-    restart: unless-stopped
     depends_on:
       - backend
+    command: npm run dev -- --host 0.0.0.0
 
   # Redis Cache
   redis:
@@ -54,7 +70,6 @@ services:
       - "6379:6379"
     networks:
       - monitor
-    restart: unless-stopped
     volumes:
       - redis_data:/data
 
@@ -69,9 +84,9 @@ services:
       - "5432:5432"
     volumes:
       - pgdata:/var/lib/postgresql/data
+      - ./backups:/backups
     networks:
       - monitor
-    restart: unless-stopped
 
   # RabbitMQ Message Broker
   rabbitmq:
@@ -86,7 +101,6 @@ services:
       - rabbitmq_data:/var/lib/rabbitmq
     networks:
       - monitor
-    restart: unless-stopped
 
   # Prometheus Monitoring
   prometheus:
@@ -99,7 +113,6 @@ services:
       - "9090:9090"
     networks:
       - monitor
-    restart: unless-stopped
 
   # Grafana Dashboard
   grafana:
@@ -108,9 +121,12 @@ services:
       - "3000:3000"
     environment:
       - GF_SECURITY_ADMIN_PASSWORD=admin
+      - GF_INSTALL_PLUGINS=grafana-clock-panel,grafana-simple-json-datasource
+    volumes:
+      - grafana_data:/var/lib/grafana
+      - ./settings/grafana-dashboards:/etc/grafana/provisioning/dashboards
     networks:
       - monitor
-    restart: unless-stopped
 
   # Alert Manager
   alertmanager:
@@ -123,7 +139,6 @@ services:
       - "9093:9093"
     networks:
       - monitor
-    restart: unless-stopped
 
   # Node Exporter for System Metrics
   node_exporter:
@@ -147,7 +162,6 @@ services:
       - /var/lib/docker/:/var/lib/docker:ro
     networks:
       - monitor
-    restart: unless-stopped
 
 networks:
   monitor:
@@ -157,5 +171,4 @@ volumes:
   pgdata:
   redis_data:
   rabbitmq_data:
-
-
+  grafana_data:
