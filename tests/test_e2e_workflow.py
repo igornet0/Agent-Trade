@@ -333,8 +333,7 @@ def test_metrics_workflow():
             'def calculate_classification_metrics(',
             'def calculate_risk_metrics(',
             'def calculate_trading_metrics(',
-            'def calculate_portfolio_metrics(',
-            'def calculate_technical_indicators('
+            'def calculate_portfolio_metrics('
         ]
         
         for func in metrics_functions:

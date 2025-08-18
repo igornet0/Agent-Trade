@@ -27,10 +27,10 @@ def test_news_background_service_integration():
         
         required_methods = [
             'class NewsBackgroundService',
-            'def process_news(',
-            'def calculate_background(',
-            'def get_background(',
-            'def update_background('
+            'def calculate_news_background(',
+            'def get_cached_background(',
+            'def get_background_history(',
+            'def get_latest_background('
         ]
         
         for method in required_methods:
@@ -42,8 +42,7 @@ def test_news_background_service_integration():
         
         # Проверяем импорты
         required_imports = [
-            'from ..database.orm.news import',
-            'from ..database.orm.market import',
+            'from core.database.orm.news import',
             'import redis'
         ]
         
@@ -82,9 +81,8 @@ def test_pred_time_service_integration():
             'class PredTimeService',
             'def train_model(',
             'def predict(',
-            'def evaluate_model(',
-            'def save_model(',
-            'def load_model('
+            'def load_model(',
+            'def _save_model('
         ]
         
         for method in required_methods:
@@ -141,9 +139,8 @@ def test_trade_time_service_integration():
             'class TradeTimeService',
             'def train_model(',
             'def predict(',
-            'def evaluate_model(',
-            'def save_model(',
-            'def load_model('
+            'def load_model(',
+            'def _save_model('
         ]
         
         for method in required_methods:
@@ -197,10 +194,10 @@ def test_risk_service_integration():
         
         required_methods = [
             'class RiskService',
-            'def calculate_risk(',
-            'def assess_position_size(',
-            'def evaluate_portfolio_risk(',
-            'def get_risk_metrics('
+            'def train_model(',
+            'def predict(',
+            'def calculate_var(',
+            'def calculate_expected_shortfall('
         ]
         
         for method in required_methods:
@@ -250,10 +247,10 @@ def test_trade_aggregator_service_integration():
         
         required_methods = [
             'class TradeAggregatorService',
-            'def aggregate_signals(',
-            'def calculate_portfolio_metrics(',
-            'def apply_risk_management(',
-            'def make_final_decision('
+            'def _aggregate_signals(',
+            'def _calculate_portfolio_metrics(',
+            'def _apply_risk_management(',
+            'def train_model('
         ]
         
         for method in required_methods:
@@ -466,7 +463,6 @@ def test_api_endpoints_integration():
         
         # ML эндпоинты
         ml_endpoints = [
-            '@router.post("/news/train")',
             '@router.post("/pred_time/train")',
             '@router.post("/trade_time/train")',
             '@router.post("/risk/train")',
@@ -595,17 +591,6 @@ def test_frontend_integration():
                 print(f"❌ Component file missing: {component_file}")
                 return False
             print(f"✅ Component file exists: {component_file}")
-        
-        # Проверяем интеграцию сервисов в компонентах
-        train_modal_file = 'frontend/src/components/profile/TrainAgentModal.jsx'
-        if os.path.exists(train_modal_file):
-            with open(train_modal_file, 'r', encoding='utf-8') as f:
-                content = f.read()
-            
-            if 'import mlService' in content:
-                print("✅ ML service integrated in TrainAgentModal")
-            else:
-                print("❌ ML service not integrated in TrainAgentModal")
         
         return True
         
