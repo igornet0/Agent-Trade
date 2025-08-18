@@ -319,7 +319,7 @@ def calculate_portfolio_metrics(returns_per_asset: Sequence[Sequence[float]],
                 "max_drawdown": asset_mdd,
                 "sharpe_ratio": asset_sharpe,
                 "win_rate": asset_win_rate,
-                "volatility": math.sqrt(sum((r - sum(asset_returns)/len(asset_returns))**2 / len(asset_returns)) if asset_returns else 0.0
+                "volatility": math.sqrt(sum((r - sum(asset_returns)/len(asset_returns))**2 / len(asset_returns)) if asset_returns else 0.0)
             })
     
     return {
@@ -329,7 +329,7 @@ def calculate_portfolio_metrics(returns_per_asset: Sequence[Sequence[float]],
             "sharpe_ratio": sharpe,
             "sortino_ratio": sortino,
             "win_rate": win_rate_val,
-            "volatility": math.sqrt(sum((r - sum(portfolio_returns)/len(portfolio_returns))**2 / len(portfolio_returns)) if portfolio_returns else 0.0
+            "volatility": math.sqrt(sum((r - sum(portfolio_returns)/len(portfolio_returns))**2 / len(portfolio_returns)) if portfolio_returns else 0.0)
         },
         "per_asset": per_asset_metrics,
         "equity_curve": equity
@@ -400,7 +400,7 @@ def calculate_risk_metrics(returns: Sequence[float], positions: Sequence[float] 
         "var": value_at_risk(returns, confidence),
         "expected_shortfall": expected_shortfall(returns, confidence),
         "max_drawdown": max_drawdown(equity_curve(returns)),
-        "volatility": math.sqrt(sum((r - sum(returns)/len(returns))**2 / len(returns)) if returns else 0.0
+        "volatility": math.sqrt(sum((r - sum(returns)/len(returns))**2 / len(returns)) if returns else 0.0)
     }
     
     if positions:
@@ -422,7 +422,7 @@ def calculate_trading_metrics(returns: Sequence[float], positions: Sequence[floa
         "sortino_ratio": sortino_ratio(returns),
         "win_rate": win_rate(returns),
         "max_drawdown": max_drawdown(equity_curve(returns)),
-        "volatility": math.sqrt(sum((r - sum(returns)/len(returns))**2 / len(returns)) if returns else 0.0
+        "volatility": math.sqrt(sum((r - sum(returns)/len(returns))**2 / len(returns)) if returns else 0.0)
     }
     
     if positions:

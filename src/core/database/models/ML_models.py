@@ -4,6 +4,9 @@ from sqlalchemy.orm import Mapped, mapped_column, relationship
 from typing import Literal
 from core.database.base import Base
 
+# Импорт для связи с Artifact
+from .main_models import Artifact
+
 
 class FeatureArgument(Base):
 
@@ -61,6 +64,10 @@ class Agent(Base):
     )
 
     trains: Mapped[list['AgentTrain']] = relationship(
+        back_populates='agent'
+    )
+
+    artifacts: Mapped[list['Artifact']] = relationship(
         back_populates='agent'
     )
 

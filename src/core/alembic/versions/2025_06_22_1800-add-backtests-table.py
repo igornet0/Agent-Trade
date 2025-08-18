@@ -2,7 +2,7 @@
 add backtests table
 
 Revision ID: add_backtests_20250622_1800
-Revises: 
+Revises: 2025_06_22_1200-add-pipeline-table
 Create Date: 2025-06-22 18:00:00
 """
 
@@ -12,7 +12,7 @@ import sqlalchemy as sa
 
 # revision identifiers, used by Alembic.
 revision = 'add_backtests_20250622_1800'
-down_revision = None
+down_revision = '2025_06_22_1200-add-pipeline-table'
 branch_labels = None
 depends_on = None
 

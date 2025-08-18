@@ -186,3 +186,71 @@ class NewsBackground(Base):
     
     class Config:
         orm_mode = True
+
+
+class Artifact(Base):
+    """Таблица для хранения артефактов моделей"""
+    __tablename__ = "artifacts"
+    
+    id = Column(Integer, primary_key=True, index=True)
+    agent_id = Column(Integer, ForeignKey("agents.id"), nullable=False)
+    version = Column(String(50), nullable=False)
+    path = Column(String(500), nullable=False)
+    type = Column(String(50), nullable=False)  # model, config, scaler, metadata
+    size_bytes = Column(BigInteger, nullable=True)
+    checksum = Column(String(64), nullable=True)
+    
+    # Relationships
+    agent = relationship("Agent", back_populates="artifacts")
+    
+    __table_args__ = (
+        UniqueConstraint('agent_id', 'version', 'type', name='uq_artifact_agent_version_type'),
+    )
+    
+    class Config:
+        orm_mode = True
+
+
+class Backtest(Base):
+    """Таблица для хранения результатов бэктестов"""
+    __tablename__ = "backtests"
+    
+    id = Column(Integer, primary_key=True, index=True)
+    pipeline_id = Column(Integer, ForeignKey("pipelines.id"), nullable=True)
+    name = Column(String(200), nullable=False)
+    config_json = Column(JSON, nullable=False)
+    timeframe = Column(String(20), nullable=False)
+    start_date = Column(DateTime, nullable=False)
+    end_date = Column(DateTime, nullable=False)
+    coins = Column(JSON, nullable=False)  # список монет для бэктеста
+    metrics_json = Column(JSON, nullable=True)
+    artifacts = Column(JSON, nullable=True)  # пути к артефактам
+    status = Column(String(20), default="running")  # running, completed, failed
+    progress = Column(Float, default=0.0)
+    error_message = Column(String(1000), nullable=True)
+    created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
+    
+    # Relationships
+    pipeline = relationship("Pipeline", back_populates="backtests")
+    
+    class Config:
+        orm_mode = True
+
+
+class Pipeline(Base):
+    """Таблица для хранения конфигураций пайплайнов"""
+    __tablename__ = "pipelines"
+    
+    id = Column(Integer, primary_key=True, index=True)
+    name = Column(String(200), nullable=False)
+    description = Column(String(1000), nullable=True)
+    config_json = Column(JSON, nullable=False)  # граф узлов и связей
+    is_template = Column(Boolean, default=False)
+    created_by = Column(Integer, ForeignKey("users.id"), nullable=True)
+    
+    # Relationships
+    user = relationship("User", backref="pipelines")
+    backtests = relationship("Backtest", back_populates="pipeline")
+    
+    class Config:
+        orm_mode = True
