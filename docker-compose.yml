@@ -1,64 +1,109 @@
-
-
+version: '3.9'
 services:
-  db:
-    image: postgres:16
-    
+  backend:
+    build:
+      context: .
+      dockerfile: Dockerfile
     env_file:
-      - ./settings/prod.env
+      - settings/prod.env
+    ports:
+      - "8000:8000"
+    depends_on:
+      - redis
+      - postgres
+    networks:
+      - monitor
+
+  celery:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    command: poetry run celery -A src.backend.celery_app.create_app.celery_app worker -l INFO
+    env_file:
+      - settings/prod.env
+    depends_on:
+      - redis
+      - postgres
+    networks:
+      - monitor
+
+  redis:
+    image: redis:7-alpine
+    ports:
+      - "6379:6379"
+    networks:
+      - monitor
+
+  postgres:
+    image: postgres:15-alpine
     environment:
-      POSTGRES_USER: ${DB__USER}
-      POSTGRES_PASSWORD: ${DB__PASSWORD}
-      POSTGRES_DB: ${DB__DB_NAME}
+      POSTGRES_DB: agent
+      POSTGRES_USER: agent
+      POSTGRES_PASSWORD: agent
     ports:
       - "5432:5432"
     volumes:
-      - db_data:/var/lib/postgresql/data
+      - pgdata:/var/lib/postgresql/data
+    networks:
+      - monitor
 
-  rabbitmq:
-    image: rabbitmq:3-management
-    ports:
-      - "5672:5672"
-      - "15672:15672"
-
-  api:
-    build:
-      context: .
-      target: base
-    env_file:
-      - ./settings/prod.env
-    depends_on:
-      - rabbitmq
-    ports:
-      - "8000:8000"
-    command: ["uvicorn", "run_app:main_app", "--host", "0.0.0.0", "--port", "8000"]
-
-  worker:
-    build:
-      context: .
-      target: worker
-    env_file:
-      - ./settings/prod.env
-    depends_on:
-      - rabbitmq
-    command: ["celery", "-A", "backend.celery_app.create_app.celery_app", "worker", "-l", "INFO"]
-
-  frontend:
-    image: node:22-alpine
-    working_dir: /app/frontend
+  prometheus:
+    image: prom/prometheus:latest
     volumes:
-      - ./:/app
-    env_file:
-      - ./settings/prod.env
-    environment:
-      - VITE_API_BASE_URL=http://localhost:8000
+      - ./settings/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+    command:
+      - --config.file=/etc/prometheus/prometheus.yml
     ports:
-      - "5173:5173"
-    command: sh -c "npm run dev -- --host 0.0.0.0 --port 5173"
-    depends_on:
-      - api
+      - "9090:9090"
+    networks:
+      - monitor
+
+  grafana:
+    image: grafana/grafana:latest
+    ports:
+      - "3000:3000"
+    environment:
+      - GF_SECURITY_ADMIN_PASSWORD=admin
+    networks:
+      - monitor
+
+  alertmanager:
+    image: prom/alertmanager:latest
+    volumes:
+      - ./settings/alertmanager.yml:/etc/alertmanager/alertmanager.yml:ro
+    command:
+      - --config.file=/etc/alertmanager/alertmanager.yml
+    ports:
+      - "9093:9093"
+    networks:
+      - monitor
+
+  node_exporter:
+    image: prom/node-exporter:latest
+    pid: host
+    restart: unless-stopped
+    ports:
+      - "9100:9100"
+    networks:
+      - monitor
+
+  cadvisor:
+    image: gcr.io/cadvisor/cadvisor:latest
+    ports:
+      - "8080:8080"
+    volumes:
+      - /:/rootfs:ro
+      - /var/run:/var/run:ro
+      - /sys:/sys:ro
+      - /var/lib/docker/:/var/lib/docker:ro
+    networks:
+      - monitor
+
+networks:
+  monitor:
+    driver: bridge
 
 volumes:
-  db_data:
+  pgdata:
 
 

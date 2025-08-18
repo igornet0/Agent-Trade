@@ -36,6 +36,11 @@ const ModelTester = () => {
   const [taskId, setTaskId] = useState(null);
   const [taskStatus, setTaskStatus] = useState(null);
 
+  // Model versions for Risk/TradeTime
+  const [modelVersions, setModelVersions] = useState([]);
+  const [selectedModelPath, setSelectedModelPath] = useState('');
+  const [previewData, setPreviewData] = useState(null);
+
   useEffect(() => {
     loadModels();
   }, []);
@@ -48,6 +53,28 @@ const ModelTester = () => {
       return () => clearInterval(interval);
     }
   }, [taskId]);
+
+  useEffect(() => {
+    // Load available model versions for Risk/TradeTime when model changes
+    const fetchModelVersions = async () => {
+      setModelVersions([]);
+      setSelectedModelPath('');
+      setPreviewData(null);
+      if (!selectedModel) return;
+      try {
+        if (selectedModel.type === 'AgentRisk') {
+          const res = await mlService.risk.getModels(selectedModel.id);
+          setModelVersions(res.data?.models || res.models || []);
+        } else if (selectedModel.type === 'AgentTradeTime') {
+          const res = await mlService.tradeTime.getModels(selectedModel.id);
+          setModelVersions(res.data?.models || res.models || []);
+        }
+      } catch (e) {
+        console.error('Error loading model versions', e);
+      }
+    };
+    fetchModelVersions();
+  }, [selectedModel]);
 
   const loadModels = async () => {
     try {
@@ -66,7 +93,7 @@ const ModelTester = () => {
       setTaskStatus(status);
       
       if (status.state === 'SUCCESS') {
-        setTestResults(status.meta || status); // meta or full response
+        setTestResults(status.meta || status);
         setLoading(false);
         setTaskId(null);
       } else if (status.state === 'FAILURE') {
@@ -103,6 +130,26 @@ const ModelTester = () => {
     } catch (error) {
       console.error('Error starting test:', error);
       setLoading(false);
+    }
+  };
+
+  const onPreviewSeries = async () => {
+    if (!selectedModel || !selectedModelPath || selectedCoins.length === 0) {
+      alert('Select model version and coin');
+      return;
+    }
+    try {
+      if (selectedModel.type === 'AgentRisk') {
+        const res = await mlService.risk.predict(selectedCoins[0], startDate, endDate, selectedModelPath);
+        const data = res.data || res;
+        setPreviewData({ type: 'risk', ...data });
+      } else if (selectedModel.type === 'AgentTradeTime') {
+        const res = await mlService.tradeTime.predict(selectedCoins[0], startDate, endDate, selectedModelPath);
+        const data = res.data || res;
+        setPreviewData({ type: 'trade_time', ...data });
+      }
+    } catch (e) {
+      console.error('Error previewing series', e);
     }
   };
 
@@ -176,6 +223,62 @@ const ModelTester = () => {
         scales: { x: { display: true }, y: { display: true } }
       };
       return <Bar data={data} options={options} />;
+    }
+    return null;
+  };
+
+  const renderPreview = () => {
+    if (!previewData) return null;
+    if (previewData.type === 'risk') {
+      const labels = (previewData.timestamp || []).map(ts => new Date(ts));
+      const riskData = {
+        labels,
+        datasets: [
+          {
+            label: 'Risk score',
+            data: previewData.risk_scores || [],
+            borderColor: 'rgba(239, 68, 68, 1)',
+            backgroundColor: 'rgba(239, 68, 68, 0.2)',
+            tension: 0.2
+          },
+          {
+            label: 'Volume score',
+            data: previewData.volume_scores || [],
+            borderColor: 'rgba(14, 165, 233, 1)',
+            backgroundColor: 'rgba(14, 165, 233, 0.2)',
+            tension: 0.2
+          }
+        ]
+      };
+      const options = { responsive: true, plugins: { legend: { position: 'top' } }, scales: { x: { type: 'time' } } };
+      return (
+        <div className="space-y-4">
+          <h4 className="font-medium">Risk/Volume Series</h4>
+          <Line data={riskData} options={options} />
+        </div>
+      );
+    }
+    if (previewData.type === 'trade_time') {
+      const labels = (previewData.timestamp || []).map(ts => new Date(ts));
+      const predSeries = {
+        labels,
+        datasets: [
+          {
+            label: 'Signal (Buy=1/Hold=0/Sell=-1)',
+            data: (previewData.predictions || []).map(v => (typeof v === 'number' ? v : 0)),
+            borderColor: 'rgba(34, 197, 94, 1)',
+            backgroundColor: 'rgba(34, 197, 94, 0.2)',
+            tension: 0.1
+          }
+        ]
+      };
+      const options = { responsive: true, plugins: { legend: { position: 'top' } }, scales: { x: { type: 'time' } } };
+      return (
+        <div className="space-y-4">
+          <h4 className="font-medium">Trade Signals</h4>
+          <Line data={predSeries} options={options} />
+        </div>
+      );
     }
     return null;
   };
@@ -282,6 +385,40 @@ const ModelTester = () => {
         >
           {loading ? 'Testing...' : 'Start Test'}
         </button>
+
+        {/* Model versions and preview for Risk/TradeTime */}
+        {selectedModel && (selectedModel.type === 'AgentRisk' || selectedModel.type === 'AgentTradeTime') && (
+          <div className="mt-6 p-4 bg-gray-50 rounded-md">
+            <h4 className="font-medium mb-2">Preview Time Series ({selectedModel.type})</h4>
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">Model Version</label>
+                <select
+                  className="w-full p-2 border border-gray-300 rounded-md"
+                  value={selectedModelPath}
+                  onChange={(e) => setSelectedModelPath(e.target.value)}
+                >
+                  <option value="">Choose version...</option>
+                  {modelVersions.map((m) => (
+                    <option key={m.model_path} value={m.model_path}>{m.model_name}</option>
+                  ))}
+                </select>
+              </div>
+              <div className="flex items-end">
+                <button
+                  onClick={onPreviewSeries}
+                  disabled={!selectedModelPath || selectedCoins.length === 0}
+                  className="w-full bg-purple-600 text-white py-2 px-4 rounded-md hover:bg-purple-700 disabled:bg-gray-400"
+                >
+                  Preview Series
+                </button>
+              </div>
+            </div>
+            <div className="mt-4">
+              {renderPreview()}
+            </div>
+          </div>
+        )}
 
         {taskStatus && (
           <div className="mt-4 p-4 bg-blue-50 rounded-md">
