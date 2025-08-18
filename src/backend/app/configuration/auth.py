@@ -7,7 +7,8 @@ from datetime import datetime, timedelta, timezone
 import re
 
 from core.settings import settings
-from core.database import User, orm_get_user_by_login
+from core.database import User
+from core.database.orm.users import orm_get_user_by_login
 
 from backend.app.configuration import TokenData, Server, UserResponse, UserLoginResponse
 
@@ -28,9 +29,15 @@ def get_password_hash(password) -> str:
     return Server.pwd_context.hash(password)
 
 def create_access_token(payload: dict,
-                        private_key: str = settings.security.private_key_path.read_text(),
+                        private_key: str = None,
                         algorithm: str = settings.security.algorithm,
                         expires_delta: Optional[timedelta] = None):
+    if private_key is None:
+        try:
+            private_key = settings.security.private_key_path.read_text()
+        except FileNotFoundError:
+            # Fallback для разработки
+            private_key = "dev-secret-key-for-testing-only"
     to_encode = payload.copy()
 
     if expires_delta:
@@ -42,8 +49,14 @@ def create_access_token(payload: dict,
 
     return jwt.encode(to_encode, private_key, algorithm=algorithm)
 
-def decode_access_token(token: str | bytes, public_key: str = settings.security.public_key_path.read_text(),
+def decode_access_token(token: str | bytes, public_key: str = None,
                         algorithm: str = settings.security.algorithm):
+    if public_key is None:
+        try:
+            public_key = settings.security.public_key_path.read_text()
+        except FileNotFoundError:
+            # Fallback для разработки
+            public_key = "dev-secret-key-for-testing-only"
     
     return jwt.decode(token, public_key, algorithms=[algorithm])
 
