@@ -1,6 +1,6 @@
 
 import uuid
-from fastapi import APIRouter, Depends, HTTPException, Query, Response
+from fastapi import APIRouter, Depends, HTTPException, Query, Response, File, Form, UploadFile
 from fastapi.security import HTTPBearer
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -1505,3 +1505,278 @@ async def cleanup_model_versions(
     except Exception as e:
         logger.error(f"Error cleaning up model versions: {e}")
         raise HTTPException(status_code=500, detail=str(e))
+
+# Test Model endpoints
+@router.post("/test_model")
+async def test_model(
+    payload: dict,
+    _: User = Depends(verify_authorization_admin)
+):
+    """Тестирование модели с заданными параметрами"""
+    try:
+        from backend.celery_app.tasks import test_model_task
+        
+        # Validate payload
+        model_id = payload.get('model_id')
+        coins = payload.get('coins', [])
+        timeframe = payload.get('timeframe', '5m')
+        start_date = payload.get('start_date')
+        end_date = payload.get('end_date')
+        metrics = payload.get('metrics', [])
+        
+        if not model_id:
+            raise HTTPException(status_code=400, detail="model_id is required")
+        
+        if not coins:
+            raise HTTPException(status_code=400, detail="coins is required")
+        
+        # Start Celery task
+        task = test_model_task.delay(
+            model_id=model_id,
+            coins=coins,
+            timeframe=timeframe,
+            start_date=start_date,
+            end_date=end_date,
+            metrics=metrics
+        )
+        
+        return {
+            "status": "started",
+            "task_id": task.id,
+            "message": f"Model testing started for {len(coins)} coins"
+        }
+        
+    except Exception as e:
+        logger.exception("Failed to start model testing")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.get("/models/{model_id}/metrics")
+async def get_model_metrics(
+    model_id: int,
+    _: User = Depends(verify_authorization_admin),
+    db: AsyncSession = Depends(Server.get_db)
+):
+    """Получение метрик модели"""
+    try:
+        from core.database.orm.agents import orm_get_model_metrics
+        
+        metrics = await orm_get_model_metrics(db, model_id)
+        
+        if not metrics:
+            raise HTTPException(status_code=404, detail="Model metrics not found")
+        
+        return {
+            "model_id": model_id,
+            "metrics": metrics
+        }
+        
+    except Exception as e:
+        logger.exception(f"Failed to get model metrics for model {model_id}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+# Data Management endpoints
+@router.get("/data/stats")
+async def get_data_stats(
+    coins: Optional[str] = Query(None, description="Comma-separated list of coin IDs"),
+    timeframe: str = Query("5m", description="Data timeframe"),
+    start_date: Optional[str] = Query(None, description="Start date (YYYY-MM-DD)"),
+    end_date: Optional[str] = Query(None, description="End date (YYYY-MM-DD)"),
+    _: User = Depends(verify_authorization_admin),
+    db: AsyncSession = Depends(Server.get_db)
+):
+    """Получение статистики данных"""
+    try:
+        from core.database.orm.data import orm_get_data_stats
+        from datetime import datetime
+        
+        # Parse coin IDs
+        coin_ids = []
+        if coins:
+            coin_ids = [int(cid.strip()) for cid in coins.split(',') if cid.strip().isdigit()]
+        
+        # Parse dates
+        start_dt = None
+        end_dt = None
+        
+        if start_date:
+            try:
+                start_dt = datetime.strptime(start_date, "%Y-%m-%d")
+            except ValueError:
+                raise HTTPException(status_code=400, detail="Invalid start_date format")
+        
+        if end_date:
+            try:
+                end_dt = datetime.strptime(end_date, "%Y-%m-%d")
+            except ValueError:
+                raise HTTPException(status_code=400, detail="Invalid end_date format")
+        
+        # Get statistics
+        stats = await orm_get_data_stats(db, coin_ids, timeframe, start_dt, end_dt)
+        
+        return stats
+        
+    except Exception as e:
+        logger.exception("Failed to get data statistics")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.get("/data/export")
+async def export_data(
+    coins: str = Query(..., description="Comma-separated list of coin IDs"),
+    timeframe: str = Query("5m", description="Data timeframe"),
+    start_date: str = Query(..., description="Start date (YYYY-MM-DD)"),
+    end_date: str = Query(..., description="End date (YYYY-MM-DD)"),
+    format: str = Query("csv", description="Export format (csv, json)"),
+    _: User = Depends(verify_authorization_admin),
+    db: AsyncSession = Depends(Server.get_db)
+):
+    """Экспорт данных"""
+    try:
+        from core.database.orm.data import orm_export_data
+        from datetime import datetime
+        import io
+        import csv
+        import json
+        
+        # Parse parameters
+        coin_ids = [int(cid.strip()) for cid in coins.split(',') if cid.strip().isdigit()]
+        
+        try:
+            start_dt = datetime.strptime(start_date, "%Y-%m-%d")
+            end_dt = datetime.strptime(end_date, "%Y-%m-%d")
+        except ValueError:
+            raise HTTPException(status_code=400, detail="Invalid date format")
+        
+        # Get data
+        data = await orm_export_data(db, coin_ids, timeframe, start_dt, end_dt)
+        
+        if format.lower() == "csv":
+            # Create CSV
+            output = io.StringIO()
+            writer = csv.writer(output)
+            
+            # Write header
+            if data:
+                writer.writerow(data[0].keys())
+                for row in data:
+                    writer.writerow(row.values())
+            
+            content = output.getvalue()
+            media_type = "text/csv"
+            filename = f"trading_data_{start_date}_{end_date}.csv"
+            
+        elif format.lower() == "json":
+            # Create JSON
+            content = json.dumps(data, indent=2, default=str)
+            media_type = "application/json"
+            filename = f"trading_data_{start_date}_{end_date}.json"
+            
+        else:
+            raise HTTPException(status_code=400, detail="Unsupported format")
+        
+        return Response(
+            content=content,
+            media_type=media_type,
+            headers={
+                "Content-Disposition": f"attachment; filename={filename}"
+            }
+        )
+        
+    except Exception as e:
+        logger.exception("Failed to export data")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.post("/data/import")
+async def import_data(
+    file: UploadFile = File(...),
+    timeframe: str = Form("5m"),
+    _: User = Depends(verify_authorization_admin),
+    db: AsyncSession = Depends(Server.get_db)
+):
+    """Импорт данных"""
+    try:
+        from core.database.orm.data import orm_import_data
+        import pandas as pd
+        import io
+        
+        # Validate file
+        if not file.filename:
+            raise HTTPException(status_code=400, detail="No file provided")
+        
+        # Read file content
+        content = await file.read()
+        
+        # Parse based on file extension
+        file_ext = file.filename.lower().split('.')[-1]
+        
+        if file_ext == 'csv':
+            df = pd.read_csv(io.StringIO(content.decode('utf-8')))
+        elif file_ext == 'json':
+            df = pd.read_json(io.StringIO(content.decode('utf-8')))
+        else:
+            raise HTTPException(status_code=400, detail="Unsupported file format")
+        
+        # Validate required columns
+        required_columns = ['datetime', 'open', 'high', 'low', 'close', 'volume']
+        missing_columns = [col for col in required_columns if col not in df.columns]
+        
+        if missing_columns:
+            raise HTTPException(
+                status_code=400, 
+                detail=f"Missing required columns: {missing_columns}"
+            )
+        
+        # Convert to list of dictionaries
+        data = df.to_dict('records')
+        
+        # Import data
+        result = await orm_import_data(db, data, timeframe)
+        
+        return {
+            "status": "success",
+            "imported_records": result.get('imported_records', 0),
+            "skipped_records": result.get('skipped_records', 0),
+            "errors": result.get('errors', [])
+        }
+        
+    except Exception as e:
+        logger.exception("Failed to import data")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+# Models endpoint (for listing all models)
+@router.get("/models")
+async def list_models(
+    type: Optional[str] = Query(None, description="Filter by model type"),
+    status: Optional[str] = Query(None, description="Filter by status"),
+    limit: Optional[int] = Query(100, description="Maximum number of models to return"),
+    _: User = Depends(verify_authorization_admin),
+    db: AsyncSession = Depends(Server.get_db)
+):
+    """Получение списка всех моделей"""
+    try:
+        from core.database.orm.agents import orm_get_models_list
+        
+        models = await orm_get_models_list(db, type=type, status=status, limit=limit)
+        
+        return {
+            "status": "success",
+            "models": models,
+            "count": len(models)
+        }
+        
+    except Exception as e:
+        logger.exception("Failed to list models")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+# Missing imports
+import logging
+import json
+from fastapi import File, Form, UploadFile
+from core.database.models.Strategy_models import TrainCoin
+
+logger = logging.getLogger(__name__)

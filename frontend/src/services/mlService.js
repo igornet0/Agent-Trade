@@ -17,6 +17,14 @@ export const trainModel = async (type, payload) => {
   return response.data; // { task_id }
 };
 
+export const testModel = async (payload) => {
+  const response = await api.post('/api_db_agent/test_model', payload, {
+    headers: { 'accept': 'application/json', 'Content-Type': 'application/json' }
+  });
+  if (response.status !== 200) throw new Error('Ошибка запуска тестирования');
+  return response.data; // { task_id }
+};
+
 export const evaluateModel = async (type, payload) => {
   const url = `/api_db_agent/${type}/evaluate`;
   const response = await api.post(url, payload, {
@@ -35,6 +43,36 @@ export const getTaskStatus = async (taskId) => {
 export const promoteModel = async (modelId) => {
   const response = await api.post(`/api_db_agent/models/${modelId}/promote`);
   if (response.status !== 200) throw new Error('Ошибка промо модели');
+  return response.data;
+};
+
+// Data management
+export const getDataStats = async (params) => {
+  const response = await api.get('/api_db_agent/data/stats', { params });
+  if (response.status !== 200) throw new Error('Ошибка получения статистики данных');
+  return response.data;
+};
+
+export const exportData = async (params) => {
+  const response = await api.get('/api_db_agent/data/export', { 
+    params,
+    responseType: 'blob'
+  });
+  if (response.status !== 200) throw new Error('Ошибка экспорта данных');
+  return response.data;
+};
+
+export const importData = async (formData) => {
+  const response = await api.post('/api_db_agent/data/import', formData, {
+    headers: { 'Content-Type': 'multipart/form-data' }
+  });
+  if (response.status !== 200) throw new Error('Ошибка импорта данных');
+  return response.data;
+};
+
+export const getModelMetrics = async (modelId) => {
+  const response = await api.get(`/api_db_agent/models/${modelId}/metrics`);
+  if (response.status !== 200) throw new Error('Ошибка получения метрик модели');
   return response.data;
 };
 
@@ -64,9 +102,14 @@ export const getNewsCoins = async () => {
 export default {
   listModels,
   trainModel,
+  testModel,
   evaluateModel,
   getTaskStatus,
   promoteModel,
+  getDataStats,
+  exportData,
+  importData,
+  getModelMetrics,
   recalcNewsBackground,
   getNewsBackground,
   getNewsCoins,
