@@ -95,9 +95,12 @@ class TestTradeTimeService(unittest.TestCase):
     
     def test_create_model_random_forest(self):
         """Тест создания Random Forest модели"""
-        model = self.service._create_model('random_forest', n_estimators=50)
-        self.assertIsNotNone(model)
-        self.assertEqual(model.n_estimators, 50)
+        try:
+            model = self.service._create_model('random_forest', n_estimators=50)
+            self.assertIsNotNone(model)
+            self.assertEqual(model.n_estimators, 50)
+        except ImportError:
+            self.skipTest("RandomForestClassifier not available")
     
     def test_calculate_metrics(self):
         """Тест расчета метрик"""
@@ -122,6 +125,12 @@ class TestTradeTimeService(unittest.TestCase):
     
     def test_save_model(self):
         """Тест сохранения модели"""
+        try:
+            # Проверяем доступность ML библиотек
+            self.service._create_model('lightgbm')
+        except ImportError:
+            self.skipTest("ML libraries not available")
+            
         # Мок модель
         mock_model = Mock()
         mock_model.predict = Mock(return_value=np.array([1, 0, -1]))
@@ -150,6 +159,12 @@ class TestTradeTimeService(unittest.TestCase):
     
     def test_load_model(self):
         """Тест загрузки модели"""
+        try:
+            # Проверяем доступность ML библиотек
+            self.service._create_model('lightgbm')
+        except ImportError:
+            self.skipTest("ML libraries not available")
+            
         # Создаем временную директорию с мок моделью
         import tempfile
         import json
@@ -181,6 +196,12 @@ class TestTradeTimeService(unittest.TestCase):
     
     def test_predict(self):
         """Тест предсказания"""
+        try:
+            # Проверяем доступность ML библиотек
+            self.service._create_model('lightgbm')
+        except ImportError:
+            self.skipTest("ML libraries not available")
+            
         # Мок модель
         mock_model = Mock()
         mock_model.predict = Mock(return_value=np.array([1, 0, -1]))
@@ -189,8 +210,8 @@ class TestTradeTimeService(unittest.TestCase):
         # Патчим загрузку модели
         with patch.object(self.service, 'load_model', return_value=mock_model):
             # Патчим получение данных
-            with patch('core.services.trade_time_service.orm_get_coin_data', return_value=self.mock_df):
-                with patch('core.services.trade_time_service.orm_get_news_background', return_value=self.mock_news_data):
+            with patch('core.services.trade_time_service.get_coin_data_sync', return_value=self.mock_df):
+                with patch('core.services.trade_time_service.get_news_background_sync', return_value=self.mock_news_data):
                     result = self.service.predict('mock_path', 'test_coin', '2025-01-01', '2025-01-02')
                     
                     # Проверяем структуру результата
@@ -214,10 +235,16 @@ class TestTradeTimeIntegration(unittest.TestCase):
         from core.services.trade_time_service import TradeTimeService
         self.service = TradeTimeService()
     
-    @patch('core.services.trade_time_service.orm_get_coin_data')
-    @patch('core.services.trade_time_service.orm_get_news_background')
+    @patch('core.services.trade_time_service.get_coin_data_sync')
+    @patch('core.services.trade_time_service.get_news_background_sync')
     def test_train_model_integration(self, mock_news, mock_market):
         """Интеграционный тест обучения модели"""
+        try:
+            # Проверяем доступность ML библиотек
+            self.service._create_model('random_forest')
+        except ImportError:
+            self.skipTest("ML libraries not available")
+            
         # Мок данные
         mock_market.return_value = pd.DataFrame({
             'timestamp': pd.date_range('2025-01-01', periods=200, freq='1H'),
@@ -235,24 +262,18 @@ class TestTradeTimeIntegration(unittest.TestCase):
         })
         
         # Тестируем обучение
-        try:
-            result = self.service.train_model(
-                'test_coin', 
-                '2025-01-01', 
-                '2025-01-10',
-                'random_forest',
-                {'n_estimators': 10}
-            )
-            
-            self.assertEqual(result['status'], 'success')
-            self.assertIn('model_path', result)
-            self.assertIn('metrics', result)
-            self.assertIn('data_info', result)
-            
-        except Exception as e:
-            # Если обучение не удалось, проверяем что ошибка логична
-            self.assertIn('error', result)
-            self.assertIsInstance(result['error'], str)
+        result = self.service.train_model(
+            'test_coin', 
+            '2025-01-01', 
+            '2025-01-10',
+            'random_forest',
+            {'n_estimators': 10}
+        )
+        
+        self.assertEqual(result['status'], 'success')
+        self.assertIn('model_path', result)
+        self.assertIn('metrics', result)
+        self.assertIn('data_info', result)
 
 if __name__ == '__main__':
     # Создаем тестовый набор

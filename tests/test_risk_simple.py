@@ -5,6 +5,7 @@
 
 import sys
 import os
+import numpy as np
 
 # Добавляем путь к модулям
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', 'src'))
@@ -89,7 +90,7 @@ def test_risk_service_risk_calculation():
         service = RiskService()
         
         # Тестируем расчет VaR и Expected Shortfall
-        returns = [0.01, -0.02, 0.03, -0.01, 0.02, -0.03, 0.01, -0.02]
+        returns = np.array([0.01, -0.02, 0.03, -0.01, 0.02, -0.03, 0.01, -0.02])
         
         var_95 = service.calculate_var(returns, 0.95)
         es_95 = service.calculate_expected_shortfall(returns, 0.95)
@@ -148,5 +149,5 @@ def main():
         return 1
 
 if __name__ == '__main__':
-    success = main()
-    assert success, "Risk simple tests failed"
+    exit_code = main()
+    assert exit_code == 0, "Risk simple tests failed"

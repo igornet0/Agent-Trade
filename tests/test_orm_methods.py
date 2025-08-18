@@ -207,5 +207,5 @@ def main():
 
 
 if __name__ == '__main__':
-    success = main()
-    assert success, "ORM methods tests failed"
+    exit_code = main()
+    assert exit_code == 0, "ORM methods tests failed"

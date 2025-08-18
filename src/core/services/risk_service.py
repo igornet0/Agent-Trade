@@ -23,6 +23,7 @@ except ImportError as e:
 from ..database.orm.market import orm_get_coin_data
 from ..database.orm.news import orm_get_news_background
 from ..database.engine import db_helper
+from ..utils.metrics import calculate_technical_indicators
 
 logger = logging.getLogger(__name__)
 

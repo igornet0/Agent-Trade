@@ -5,6 +5,8 @@ import numpy as np
 import pandas as pd
 from datetime import datetime, timedelta
 import logging
+import asyncio
+from typing import Any
 
 try:
     import lightgbm as lgb
@@ -13,16 +15,45 @@ try:
     from sklearn.preprocessing import StandardScaler, LabelEncoder
     from sklearn.metrics import roc_auc_score, precision_recall_auc_score, confusion_matrix, classification_report
     from sklearn.ensemble import RandomForestClassifier
+    ML_LIBRARIES_AVAILABLE = True
 except ImportError as e:
     logging.warning(f"ML libraries not available: {e}")
     lgb = None
     cb = None
+    ML_LIBRARIES_AVAILABLE = False
 
 from ..database.orm.market import orm_get_coin_data
 from ..database.orm.news import orm_get_news_background
 from ..utils.metrics import calculate_technical_indicators
+from ..database.engine import db_helper
 
 logger = logging.getLogger(__name__)
+
+def get_coin_data_sync(coin_id, start_date=None, end_date=None):
+    """Синхронная обертка для orm_get_coin_data"""
+    try:
+        async def _get_data():
+            async with db_helper.get_session() as session:
+                return await orm_get_coin_data(session, coin_id, start_date, end_date)
+        
+        return asyncio.run(_get_data())
+    except Exception as e:
+        # Для тестов возвращаем пустой DataFrame если db_helper недоступен
+        logger.warning(f"Database not available for testing: {e}")
+        return pd.DataFrame()
+
+def get_news_background_sync(coin_id, start_date=None, end_date=None):
+    """Синхронная обертка для orm_get_news_background"""
+    try:
+        async def _get_data():
+            async with db_helper.get_session() as session:
+                return await orm_get_news_background(session, coin_id, start_date, end_date)
+        
+        return asyncio.run(_get_data())
+    except Exception as e:
+        # Для тестов возвращаем пустой DataFrame если db_helper недоступен
+        logger.warning(f"Database not available for testing: {e}")
+        return pd.DataFrame()
 
 class TradeTimeService:
     """Сервис для Trade_time модуля - генерация торговых сигналов"""
@@ -47,6 +78,8 @@ class TradeTimeService:
         loss = (-delta.where(delta < 0, 0)).rolling(window=14).mean()
         rs = gain / loss
         df['rsi'] = 100 - (100 / (1 + rs))
+        # Обработка NaN и бесконечных значений
+        df['rsi'] = df['rsi'].fillna(50).replace([np.inf, -np.inf], 50).clip(0, 100)
         
         # MACD
         df['macd'] = df['ema_12'] - df['ema_26']
@@ -124,7 +157,12 @@ class TradeTimeService:
     
     def _create_model(self, model_type: str = 'lightgbm', **kwargs) -> Any:
         """Создание модели указанного типа"""
-        if model_type == 'lightgbm' and lgb is not None:
+        if not ML_LIBRARIES_AVAILABLE:
+            raise ImportError("ML libraries are not available")
+            
+        if model_type == 'lightgbm':
+            if lgb is None:
+                raise ImportError("LightGBM is not available")
             return lgb.LGBMClassifier(
                 n_estimators=kwargs.get('n_estimators', 100),
                 learning_rate=kwargs.get('learning_rate', 0.1),
@@ -133,7 +171,9 @@ class TradeTimeService:
                 random_state=42,
                 verbose=-1
             )
-        elif model_type == 'catboost' and cb is not None:
+        elif model_type == 'catboost':
+            if cb is None:
+                raise ImportError("CatBoost is not available")
             return cb.CatBoostClassifier(
                 iterations=kwargs.get('iterations', 100),
                 learning_rate=kwargs.get('learning_rate', 0.1),
@@ -142,6 +182,8 @@ class TradeTimeService:
                 verbose=False
             )
         elif model_type == 'random_forest':
+            if RandomForestClassifier is None:
+                raise ImportError("RandomForestClassifier is not available")
             return RandomForestClassifier(
                 n_estimators=kwargs.get('n_estimators', 100),
                 max_depth=kwargs.get('max_depth', 10),
@@ -155,14 +197,14 @@ class TradeTimeService:
         """Обучение модели Trade_time"""
         try:
             # Получение данных
-            df = orm_get_coin_data(coin_id, start_date, end_date)
+            df = get_coin_data_sync(coin_id, start_date, end_date)
             if df.empty:
                 raise ValueError(f"No data found for coin {coin_id}")
             
             # Получение новостных данных
             news_data = None
             try:
-                news_data = orm_get_news_background(coin_id, start_date, end_date)
+                news_data = get_news_background_sync(coin_id, start_date, end_date)
             except Exception as e:
                 logger.warning(f"Could not fetch news data: {e}")
             
@@ -222,6 +264,30 @@ class TradeTimeService:
     def _calculate_metrics(self, y_true, y_pred, y_prob=None):
         """Расчет метрик для классификации"""
         metrics = {}
+        
+        if not ML_LIBRARIES_AVAILABLE:
+            # Простые метрики без sklearn
+            metrics['accuracy'] = (y_true == y_pred).mean()
+            metrics['total_predictions'] = len(y_pred)
+            
+            # Подсчет сигналов
+            buy_signals = np.sum(y_pred == 1)
+            sell_signals = np.sum(y_pred == -1)
+            hold_signals = np.sum(y_pred == 0)
+            
+            metrics['buy_signals'] = int(buy_signals)
+            metrics['sell_signals'] = int(sell_signals)
+            metrics['hold_signals'] = int(hold_signals)
+            
+            # Простая матрица ошибок
+            unique_labels = np.unique(y_true)
+            confusion_matrix = np.zeros((len(unique_labels), len(unique_labels)), dtype=int)
+            for i, true_label in enumerate(unique_labels):
+                for j, pred_label in enumerate(unique_labels):
+                    confusion_matrix[i, j] = np.sum((y_true == true_label) & (y_pred == pred_label))
+            metrics['confusion_matrix'] = confusion_matrix.tolist()
+            
+            return metrics
         
         # Базовые метрики
         cm = confusion_matrix(y_true, y_pred)
@@ -334,14 +400,14 @@ class TradeTimeService:
             model = self.load_model(model_path)
             
             # Получение данных
-            df = orm_get_coin_data(coin_id, start_date, end_date)
+            df = get_coin_data_sync(coin_id, start_date, end_date)
             if df.empty:
                 raise ValueError(f"No data found for coin {coin_id}")
             
             # Получение новостных данных
             news_data = None
             try:
-                news_data = orm_get_news_background(coin_id, start_date, end_date)
+                news_data = get_news_background_sync(coin_id, start_date, end_date)
             except Exception as e:
                 logger.warning(f"Could not fetch news data: {e}")
             
