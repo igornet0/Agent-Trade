@@ -13,7 +13,7 @@ from core.database.orm.transactions import (orm_get_transactions_by_id,
                                            orm_get_user_coin_transactions,
                                            orm_get_coin_portfolio)
 
-from src.Dataset import DatasetTimeseries
+from Dataset import DatasetTimeseries
 from backend.app.configuration import (Server,
                                 TimeLineCoin,
                                 CoinData,

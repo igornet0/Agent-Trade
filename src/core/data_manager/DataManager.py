@@ -79,11 +79,11 @@ class DataManager:
         for directory in self.required_dirs.values():
             directory.mkdir(parents=True, exist_ok=True)
 
-        # Импортируем менеджер агентов из пространства src
+        # Импортируем менеджер агентов
         try:
             from MMM.agent_manager import AgentManager
         except ModuleNotFoundError:
-            from src.MMM.agent_manager import AgentManager
+            from MMM.agent_manager import AgentManager
 
         for agent_type in AgentManager.type_agents.keys():
             directory = self["models logs"] / agent_type
@@ -379,7 +379,7 @@ class DataManager:
         """
         Получение доступных типов агентов
         """
-        from src.MMM.agent_manager import AgentManager
+        from MMM.agent_manager import AgentManager
 
         return list(AgentManager.type_agents.keys())
 

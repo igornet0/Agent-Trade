@@ -273,7 +273,6 @@ if __name__ == '__main__':
     
     if result.wasSuccessful():
         print("✅ Все тесты прошли успешно!")
-        sys.exit(0)
     else:
         print("❌ Некоторые тесты провалились")
-        sys.exit(1)
+        raise AssertionError("Trade time module tests failed")

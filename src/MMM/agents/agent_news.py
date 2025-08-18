@@ -2,7 +2,7 @@ from typing import Dict, Any, Tuple
 import pandas as pd
 import torch
 
-from src.Dataset.indicators import Indicators
+from Dataset.indicators import Indicators
 
 from .agent import Agent
 from ..models import CryptoImpactModel

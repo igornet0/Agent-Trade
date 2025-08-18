@@ -2,8 +2,8 @@ import asyncio
 
 from typing import List, Dict, Generator, Any, Union, Literal
 
-from src.Dataset import DatasetTimeseries
-from src.train_models.transform_data import TimeSeriesTransform
+from Dataset import DatasetTimeseries
+from train_models.transform_data import TimeSeriesTransform
 from core.database import orm_get_coins, orm_get_timeseries_by_coin, orm_get_data_timeseries
 from core.database.engine import db_helper, set_db_helper
 

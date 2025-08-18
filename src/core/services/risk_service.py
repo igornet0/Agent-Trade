@@ -6,21 +6,38 @@ import pandas as pd
 from datetime import datetime, timedelta
 import logging
 import math
+import asyncio
+from typing import Dict, Any, Tuple, Optional
 
 try:
     import xgboost as xgb
     from sklearn.model_selection import train_test_split
     from sklearn.preprocessing import StandardScaler
     from sklearn.metrics import mean_squared_error, mean_absolute_error
+    SKLEARN_AVAILABLE = True
 except ImportError as e:
     logging.warning(f"ML libraries not available: {e}")
     xgb = None
+    SKLEARN_AVAILABLE = False
 
 from ..database.orm.market import orm_get_coin_data
 from ..database.orm.news import orm_get_news_background
-from ..utils.metrics import calculate_technical_indicators
+from ..database.engine import db_helper
 
 logger = logging.getLogger(__name__)
+
+def get_coin_data_sync(coin_id, start_date=None, end_date=None):
+    """Синхронная обертка для orm_get_coin_data"""
+    try:
+        async def _get_data():
+            async with db_helper.get_session() as session:
+                return await orm_get_coin_data(session, coin_id, start_date, end_date)
+        
+        return asyncio.run(_get_data())
+    except Exception as e:
+        # Для тестов возвращаем пустой DataFrame если db_helper недоступен
+        logger.warning(f"Database not available for testing: {e}")
+        return pd.DataFrame()
 
 class RiskService:
     """Сервис для Risk модуля - оценка рисков и объема торгов"""
@@ -208,7 +225,7 @@ class RiskService:
         """Обучение модели Risk"""
         try:
             # Получение данных
-            df = orm_get_coin_data(coin_id, start_date, end_date)
+            df = get_coin_data_sync(coin_id, start_date, end_date)
             if df.empty:
                 raise ValueError(f"No data found for coin {coin_id}")
             
@@ -291,10 +308,17 @@ class RiskService:
         """Расчет метрик для risk модели"""
         metrics = {}
         
-        # Базовые метрики регрессии
-        metrics['rmse'] = math.sqrt(mean_squared_error(y_true, y_pred))
-        metrics['mae'] = mean_absolute_error(y_true, y_pred)
-        metrics['mape'] = np.mean(np.abs((y_true - y_pred) / np.clip(y_true, 1e-8, None))) * 100
+        if not SKLEARN_AVAILABLE:
+            # Простые метрики без sklearn
+            mse = np.mean((y_true - y_pred) ** 2)
+            metrics['rmse'] = math.sqrt(mse)
+            metrics['mae'] = np.mean(np.abs(y_true - y_pred))
+            metrics['mape'] = np.mean(np.abs((y_true - y_pred) / np.clip(y_true, 1e-8, None))) * 100
+        else:
+            # Базовые метрики регрессии
+            metrics['rmse'] = math.sqrt(mean_squared_error(y_true, y_pred))
+            metrics['mae'] = mean_absolute_error(y_true, y_pred)
+            metrics['mape'] = np.mean(np.abs((y_true - y_pred) / np.clip(y_true, 1e-8, None))) * 100
         
         # Дополнительные метрики
         metrics['mean_risk'] = float(np.mean(y_true))
@@ -318,10 +342,17 @@ class RiskService:
         """Расчет метрик для volume модели"""
         metrics = {}
         
-        # Базовые метрики регрессии
-        metrics['rmse'] = math.sqrt(mean_squared_error(y_true, y_pred))
-        metrics['mae'] = mean_absolute_error(y_true, y_pred)
-        metrics['mape'] = np.mean(np.abs((y_true - y_pred) / np.clip(y_true, 1e-8, None))) * 100
+        if not SKLEARN_AVAILABLE:
+            # Простые метрики без sklearn
+            mse = np.mean((y_true - y_pred) ** 2)
+            metrics['rmse'] = math.sqrt(mse)
+            metrics['mae'] = np.mean(np.abs(y_true - y_pred))
+            metrics['mape'] = np.mean(np.abs((y_true - y_pred) / np.clip(y_true, 1e-8, None))) * 100
+        else:
+            # Базовые метрики регрессии
+            metrics['rmse'] = math.sqrt(mean_squared_error(y_true, y_pred))
+            metrics['mae'] = mean_absolute_error(y_true, y_pred)
+            metrics['mape'] = np.mean(np.abs((y_true - y_pred) / np.clip(y_true, 1e-8, None))) * 100
         
         # Дополнительные метрики
         metrics['mean_volume'] = float(np.mean(y_true))
@@ -408,7 +439,7 @@ class RiskService:
             risk_model, volume_model = self.load_models(model_path)
             
             # Получение данных
-            df = orm_get_coin_data(coin_id, start_date, end_date)
+            df = get_coin_data_sync(coin_id, start_date, end_date)
             if df.empty:
                 raise ValueError(f"No data found for coin {coin_id}")
             

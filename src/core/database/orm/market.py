@@ -3,6 +3,7 @@ from datetime import datetime
 from sqlalchemy import select, update, desc
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import joinedload
+import pandas as pd
 
 from core.database.models import (
     Coin, Timeseries, DataTimeseries,
@@ -134,5 +135,61 @@ async def orm_add_data_timeseries(session: AsyncSession, timeseries_id: int, dat
     session.add(DataTimeseries(timeseries_id=timeseries_id, **data_timeseries))
     await session.commit()
     return True
+
+
+async def orm_get_coin_data(session: AsyncSession, coin_id: str | int, start_date: str = None, end_date: str = None) -> pd.DataFrame:
+    """
+    Получение данных монеты в виде DataFrame
+    
+    Args:
+        session: AsyncSession
+        coin_id: ID или название монеты
+        start_date: Начальная дата (опционально)
+        end_date: Конечная дата (опционально)
+    
+    Returns:
+        pd.DataFrame: DataFrame с данными монеты
+    """
+    import pandas as pd
+    
+    # Получаем timeseries для монеты (используем 5m как дефолтный timeframe)
+    timeseries = await orm_get_timeseries_by_coin(session, coin_id, timeframe="5m")
+    if not timeseries:
+        # Если нет 5m, пробуем получить любой доступный
+        timeseries_list = await orm_get_timeseries_by_coin(session, coin_id)
+        if not timeseries_list:
+            return pd.DataFrame()  # Возвращаем пустой DataFrame
+        timeseries = timeseries_list[0]  # Берем первый доступный
+    
+    # Получаем данные
+    data_records = await orm_get_data_timeseries(session, timeseries.id)
+    
+    if not data_records:
+        return pd.DataFrame()
+    
+    # Конвертируем в DataFrame
+    df_data = []
+    for record in data_records:
+        df_data.append({
+            'datetime': record.datetime,
+            'open': record.open,
+            'high': record.high,
+            'low': record.low,
+            'close': record.close,
+            'volume': record.volume
+        })
+    
+    df = pd.DataFrame(df_data)
+    
+    # Фильтруем по датам если указаны
+    if start_date:
+        df = df[df['datetime'] >= start_date]
+    if end_date:
+        df = df[df['datetime'] <= end_date]
+    
+    # Сортируем по времени
+    df = df.sort_values('datetime').reset_index(drop=True)
+    
+    return df
 
 
