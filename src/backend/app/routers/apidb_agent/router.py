@@ -1,6 +1,6 @@
 
 import uuid
-from fastapi import APIRouter, Depends, HTTPException, Query
+from fastapi import APIRouter, Depends, HTTPException, Query, Response
 from fastapi.security import HTTPBearer
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -44,7 +44,8 @@ from backend.celery_app.tasks import train_model_task
 from backend.celery_app.tasks import evaluate_model_task, train_news_task
 from backend.celery_app.create_app import celery_app
 from backend.app.configuration.schemas.agent import TrainRequest
-from typing import Optional, List, Dict
+from typing import Optional, List, Dict, Any
+from datetime import datetime
 
 http_bearer = HTTPBearer(auto_error=False)
 
@@ -1075,4 +1076,240 @@ async def predict_risk(
         
     except Exception as e:
         logger.error(f"Error in risk predict: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+# Pipeline endpoints
+@router.post("/pipeline/run")
+async def run_pipeline(
+    pipeline_config: Dict[str, Any],
+    timeframe: str,
+    start_date: str,
+    end_date: str,
+    coins: List[str],
+    current_user: User = Depends(verify_authorization_admin)
+):
+    """Запуск пайплайна на выполнение"""
+    try:
+        from core.database.orm.pipelines import orm_create_backtest
+        from core.database.engine import get_db
+        from backend.celery_app.tasks import run_pipeline_backtest_task
+        
+        # Создаем запись бэктеста
+        db = next(get_db())
+        backtest = orm_create_backtest(
+            db=db,
+            name=f"Pipeline Backtest {datetime.utcnow().strftime('%Y-%m-%d %H:%M')}",
+            config_json=pipeline_config,
+            timeframe=timeframe,
+            start_date=datetime.fromisoformat(start_date),
+            end_date=datetime.fromisoformat(end_date),
+            coins=coins
+        )
+        
+        # Запускаем Celery задачу
+        task = run_pipeline_backtest_task.delay(
+            pipeline_config=pipeline_config,
+            timeframe=timeframe,
+            start_date=start_date,
+            end_date=end_date,
+            coins=coins,
+            backtest_id=backtest.id
+        )
+        
+        return {
+            "task_id": task.id,
+            "backtest_id": backtest.id,
+            "status": "started"
+        }
+        
+    except Exception as e:
+        logger.error(f"Error in pipeline run: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.get("/pipeline/tasks/{task_id}")
+async def get_pipeline_task_status(
+    task_id: str,
+    current_user: User = Depends(verify_authorization_admin)
+):
+    """Получение статуса задачи пайплайна"""
+    try:
+        from backend.celery_app.tasks import run_pipeline_backtest_task
+        
+        task = run_pipeline_backtest_task.AsyncResult(task_id)
+        
+        if task.state == 'PENDING':
+            response = {
+                'state': task.state,
+                'current': 0,
+                'total': 100,
+                'status': 'Task is pending...'
+            }
+        elif task.state == 'PROGRESS':
+            response = {
+                'state': task.state,
+                'current': task.info.get('current', 0),
+                'total': task.info.get('total', 100),
+                'status': task.info.get('status', '')
+            }
+        elif task.state == 'SUCCESS':
+            response = {
+                'state': task.state,
+                'current': 100,
+                'total': 100,
+                'status': 'Task completed successfully',
+                'results': task.info.get('results', {})
+            }
+        else:
+            response = {
+                'state': task.state,
+                'current': 0,
+                'total': 100,
+                'status': task.info.get('status', 'Task failed'),
+                'error': task.info.get('error', 'Unknown error')
+            }
+        
+        return response
+        
+    except Exception as e:
+        logger.error(f"Error getting task status: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.post("/pipeline/tasks/{task_id}/revoke")
+async def revoke_pipeline_task(
+    task_id: str,
+    current_user: User = Depends(verify_authorization_admin)
+):
+    """Отмена задачи пайплайна"""
+    try:
+        from backend.celery_app.tasks import run_pipeline_backtest_task
+        
+        task = run_pipeline_backtest_task.AsyncResult(task_id)
+        task.revoke(terminate=True)
+        
+        return {"status": "revoked", "task_id": task_id}
+        
+    except Exception as e:
+        logger.error(f"Error revoking task: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.get("/pipeline/backtests")
+async def list_backtests(
+    pipeline_id: Optional[int] = None,
+    status: Optional[str] = None,
+    limit: Optional[int] = 50,
+    current_user: User = Depends(verify_authorization_admin)
+):
+    """Получение списка бэктестов"""
+    try:
+        from core.database.orm.pipelines import orm_get_backtests
+        from core.database.engine import get_db
+        
+        db = next(get_db())
+        backtests = orm_get_backtests(db, pipeline_id, status, limit)
+        
+        return [
+            {
+                "id": bt.id,
+                "pipeline_id": bt.pipeline_id,
+                "name": bt.name,
+                "timeframe": bt.timeframe,
+                "start_date": bt.start_date.isoformat() if bt.start_date else None,
+                "end_date": bt.end_date.isoformat() if bt.end_date else None,
+                "coins": bt.coins,
+                "status": bt.status,
+                "progress": bt.progress,
+                "error_message": bt.error_message
+            }
+            for bt in backtests
+        ]
+        
+    except Exception as e:
+        logger.error(f"Error listing backtests: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.get("/pipeline/backtests/{backtest_id}")
+async def get_backtest(
+    backtest_id: int,
+    current_user: User = Depends(verify_authorization_admin)
+):
+    """Получение детальной информации о бэктесте"""
+    try:
+        from core.database.orm.pipelines import orm_get_backtest_by_id
+        from core.database.engine import get_db
+        
+        db = next(get_db())
+        backtest = orm_get_backtest_by_id(db, backtest_id)
+        
+        if not backtest:
+            raise HTTPException(status_code=404, detail="Backtest not found")
+        
+        return {
+            "id": backtest.id,
+            "pipeline_id": backtest.pipeline_id,
+            "name": backtest.name,
+            "timeframe": backtest.timeframe,
+            "start_date": backtest.start_date.isoformat() if backtest.start_date else None,
+            "end_date": backtest.end_date.isoformat() if backtest.end_date else None,
+            "coins": backtest.coins,
+            "status": backtest.status,
+            "progress": backtest.progress,
+            "error_message": backtest.error_message,
+            "metrics": backtest.metrics_json,
+            "artifacts": backtest.artifacts
+        }
+        
+    except Exception as e:
+        logger.error(f"Error getting backtest: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.get("/pipeline/artifacts/{path:path}")
+async def download_artifact(
+    path: str,
+    current_user: User = Depends(verify_authorization_admin)
+):
+    """Скачивание артефакта пайплайна"""
+    try:
+        import os
+        
+        # Безопасный путь к артефактам
+        artifacts_dir = "artifacts/pipelines"
+        full_path = os.path.join(artifacts_dir, path)
+        
+        # Проверяем, что путь находится в разрешенной директории
+        if not os.path.abspath(full_path).startswith(os.path.abspath(artifacts_dir)):
+            raise HTTPException(status_code=403, detail="Access denied")
+        
+        if not os.path.exists(full_path):
+            raise HTTPException(status_code=404, detail="Artifact not found")
+        
+        # Определяем тип файла
+        file_extension = os.path.splitext(full_path)[1].lower()
+        content_type = {
+            '.json': 'application/json',
+            '.csv': 'text/csv',
+            '.txt': 'text/plain',
+            '.png': 'image/png',
+            '.jpg': 'image/jpeg',
+            '.pdf': 'application/pdf'
+        }.get(file_extension, 'application/octet-stream')
+        
+        # Читаем файл
+        with open(full_path, 'rb') as f:
+            content = f.read()
+        
+        return Response(
+            content=content,
+            media_type=content_type,
+            headers={
+                "Content-Disposition": f"attachment; filename={os.path.basename(full_path)}"
+            }
+        )
+        
+    except Exception as e:
+        logger.error(f"Error downloading artifact: {e}")
         raise HTTPException(status_code=500, detail=str(e))

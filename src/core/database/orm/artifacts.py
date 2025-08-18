@@ -26,8 +26,7 @@ def orm_create_artifact(
         path=path,
         type=artifact_type,
         size_bytes=size_bytes,
-        checksum=checksum,
-        created_at=datetime.utcnow()
+        checksum=checksum
     )
     
     db.add(artifact)
@@ -54,7 +53,7 @@ def orm_get_artifacts_by_agent(
     if artifact_type:
         query = query.filter(Artifact.type == artifact_type)
     
-    query = query.order_by(desc(Artifact.created_at))
+    query = query.order_by(desc(Artifact.id))  # Используем ID вместо created_at
     
     if limit:
         query = query.limit(limit)
@@ -73,7 +72,7 @@ def orm_get_latest_artifact(
             Artifact.agent_id == agent_id,
             Artifact.type == artifact_type
         )
-    ).order_by(desc(Artifact.created_at)).first()
+    ).order_by(desc(Artifact.id)).first()  # Используем ID вместо created_at
 
 
 def orm_get_artifacts_by_version(
@@ -136,17 +135,16 @@ def orm_get_artifact_stats(db: Session, agent_id: int) -> Dict[str, Any]:
             stats["by_type"][artifact_type] = {
                 "count": 0,
                 "size_bytes": 0,
-                "latest_version": None,
-                "latest_created": None
+                "latest_version": None
             }
         
         stats["by_type"][artifact_type]["count"] += 1
         stats["by_type"][artifact_type]["size_bytes"] += artifact.size_bytes or 0
         
-        if (stats["by_type"][artifact_type]["latest_created"] is None or 
-            artifact.created_at > stats["by_type"][artifact_type]["latest_created"]):
+        # Используем ID для определения последней версии
+        if (stats["by_type"][artifact_type]["latest_version"] is None or 
+            artifact.id > max(a.id for a in artifacts if a.type == artifact_type)):
             stats["by_type"][artifact_type]["latest_version"] = artifact.version
-            stats["by_type"][artifact_type]["latest_created"] = artifact.created_at
     
     return stats
 
@@ -157,10 +155,10 @@ def orm_cleanup_old_artifacts(
     keep_versions: int = 3
 ) -> int:
     """Очистка старых версий артефактов, оставляя только последние N версий"""
-    # Получаем все версии агента, отсортированные по дате создания
-    versions = db.query(Artifact.version, Artifact.created_at).filter(
+    # Получаем все версии агента, отсортированные по ID
+    versions = db.query(Artifact.version, Artifact.id).filter(
         Artifact.agent_id == agent_id
-    ).distinct().order_by(desc(Artifact.created_at)).all()
+    ).distinct().order_by(desc(Artifact.id)).all()
     
     if len(versions) <= keep_versions:
         return 0
