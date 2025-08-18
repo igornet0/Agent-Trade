@@ -1313,3 +1313,195 @@ async def download_artifact(
     except Exception as e:
         logger.error(f"Error downloading artifact: {e}")
         raise HTTPException(status_code=500, detail=str(e))
+
+# Model Versioning endpoints
+@router.post("/models/{agent_id}/versions")
+async def create_model_version(
+    agent_id: int,
+    version: str,
+    model_path: str,
+    config_path: Optional[str] = None,
+    scaler_path: Optional[str] = None,
+    metadata: Optional[Dict[str, Any]] = None,
+    current_user: User = Depends(verify_authorization_admin)
+):
+    """Создание новой версии модели"""
+    try:
+        from core.services.model_versioning_service import ModelVersioningService
+        
+        service = ModelVersioningService()
+        result = service.create_version(
+            agent_id=agent_id,
+            version=version,
+            model_path=model_path,
+            config_path=config_path,
+            scaler_path=scaler_path,
+            metadata=metadata
+        )
+        
+        return result
+        
+    except Exception as e:
+        logger.error(f"Error creating model version: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.post("/models/{agent_id}/versions/{version}/promote")
+async def promote_model_version(
+    agent_id: int,
+    version: str,
+    force: bool = False,
+    current_user: User = Depends(verify_authorization_admin)
+):
+    """Продвижение версии модели в продакшн"""
+    try:
+        from core.services.model_versioning_service import ModelVersioningService
+        
+        service = ModelVersioningService()
+        result = service.promote_version(
+            agent_id=agent_id,
+            version=version,
+            force=force
+        )
+        
+        return result
+        
+    except Exception as e:
+        logger.error(f"Error promoting model version: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.post("/models/{agent_id}/versions/{version}/rollback")
+async def rollback_model_version(
+    agent_id: int,
+    version: str,
+    current_user: User = Depends(verify_authorization_admin)
+):
+    """Откат к указанной версии модели"""
+    try:
+        from core.services.model_versioning_service import ModelVersioningService
+        
+        service = ModelVersioningService()
+        result = service.rollback_version(
+            agent_id=agent_id,
+            target_version=version
+        )
+        
+        return result
+        
+    except Exception as e:
+        logger.error(f"Error rolling back model version: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.get("/models/{agent_id}/versions")
+async def list_model_versions(
+    agent_id: int,
+    limit: Optional[int] = None,
+    current_user: User = Depends(verify_authorization_admin)
+):
+    """Получение списка версий модели"""
+    try:
+        from core.services.model_versioning_service import ModelVersioningService
+        
+        service = ModelVersioningService()
+        versions = service.list_versions(
+            agent_id=agent_id,
+            limit=limit
+        )
+        
+        return versions
+        
+    except Exception as e:
+        logger.error(f"Error listing model versions: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.get("/models/{agent_id}/versions/{version}")
+async def get_model_version_info(
+    agent_id: int,
+    version: str,
+    current_user: User = Depends(verify_authorization_admin)
+):
+    """Получение детальной информации о версии модели"""
+    try:
+        from core.services.model_versioning_service import ModelVersioningService
+        
+        service = ModelVersioningService()
+        version_info = service.get_version_info(
+            agent_id=agent_id,
+            version=version
+        )
+        
+        return version_info
+        
+    except Exception as e:
+        logger.error(f"Error getting model version info: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.delete("/models/{agent_id}/versions/{version}")
+async def delete_model_version(
+    agent_id: int,
+    version: str,
+    force: bool = False,
+    current_user: User = Depends(verify_authorization_admin)
+):
+    """Удаление версии модели"""
+    try:
+        from core.services.model_versioning_service import ModelVersioningService
+        
+        service = ModelVersioningService()
+        result = service.delete_version(
+            agent_id=agent_id,
+            version=version,
+            force=force
+        )
+        
+        return result
+        
+    except Exception as e:
+        logger.error(f"Error deleting model version: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.get("/models/{agent_id}/production")
+async def get_model_production_status(
+    agent_id: int,
+    current_user: User = Depends(verify_authorization_admin)
+):
+    """Получение статуса продакшн версии модели"""
+    try:
+        from core.services.model_versioning_service import ModelVersioningService
+        
+        service = ModelVersioningService()
+        status = service.get_production_status(agent_id)
+        
+        return status
+        
+    except Exception as e:
+        logger.error(f"Error getting model production status: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.post("/models/{agent_id}/versions/cleanup")
+async def cleanup_model_versions(
+    agent_id: int,
+    keep_versions: int = 5,
+    current_user: User = Depends(verify_authorization_admin)
+):
+    """Очистка старых версий модели"""
+    try:
+        from core.services.model_versioning_service import ModelVersioningService
+        
+        service = ModelVersioningService()
+        result = service.cleanup_old_versions(
+            agent_id=agent_id,
+            keep_versions=keep_versions
+        )
+        
+        return result
+        
+    except Exception as e:
+        logger.error(f"Error cleaning up model versions: {e}")
+        raise HTTPException(status_code=500, detail=str(e))

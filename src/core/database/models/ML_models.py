@@ -43,6 +43,11 @@ class Agent(Base):
     active: Mapped[bool] = mapped_column(Boolean, default=True)
 
     version: Mapped[str] = mapped_column(String(20), default="0.0.1")
+    
+    # Поля для версионирования
+    production_version: Mapped[str] = mapped_column(String(20), nullable=True)
+    production_artifacts: Mapped[dict] = mapped_column(JSON, nullable=True)
+    agent_type: Mapped[str] = mapped_column(String(50), nullable=True)  # News, Pred_time, Trade_time, Risk, Trade_aggregator
 
     status: Mapped[str] = mapped_column(String(20), default="open")
 
