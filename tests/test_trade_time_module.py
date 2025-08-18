@@ -259,8 +259,9 @@ if __name__ == '__main__':
     test_suite = unittest.TestSuite()
     
     # Добавляем тесты
-    test_suite.addTest(unittest.makeSuite(TestTradeTimeService))
-    test_suite.addTest(unittest.makeSuite(TestTradeTimeIntegration))
+    loader = unittest.TestLoader()
+    test_suite.addTest(loader.loadTestsFromTestCase(TestTradeTimeService))
+    test_suite.addTest(loader.loadTestsFromTestCase(TestTradeTimeIntegration))
     
     # Запускаем тесты
     runner = unittest.TextTestRunner(verbosity=2)

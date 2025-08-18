@@ -23,7 +23,7 @@ class TestRiskService(unittest.TestCase):
         
         # Мок данных
         self.mock_df = pd.DataFrame({
-            'timestamp': pd.date_range('2025-01-01', periods=100, freq='1H'),
+            'timestamp': pd.date_range('2025-01-01', periods=100, freq='1h'),
             'open': np.random.uniform(100, 200, 100),
             'high': np.random.uniform(100, 200, 100),
             'low': np.random.uniform(100, 200, 100),
@@ -32,7 +32,7 @@ class TestRiskService(unittest.TestCase):
         })
         
         self.mock_news_data = pd.DataFrame({
-            'timestamp': pd.date_range('2025-01-01', periods=100, freq='1H'),
+            'timestamp': pd.date_range('2025-01-01', periods=100, freq='1h'),
             'score': np.random.uniform(-1, 1, 100),
             'source_count': np.random.randint(1, 10, 100)
         })
@@ -305,7 +305,7 @@ class TestRiskIntegration(unittest.TestCase):
         """Интеграционный тест обучения модели"""
         # Мок данные
         mock_market.return_value = pd.DataFrame({
-            'timestamp': pd.date_range('2025-01-01', periods=200, freq='1H'),
+            'timestamp': pd.date_range('2025-01-01', periods=200, freq='1h'),
             'open': np.random.uniform(100, 200, 200),
             'high': np.random.uniform(100, 200, 200),
             'low': np.random.uniform(100, 200, 200),
@@ -314,7 +314,7 @@ class TestRiskIntegration(unittest.TestCase):
         })
         
         mock_news.return_value = pd.DataFrame({
-            'timestamp': pd.date_range('2025-01-01', periods=200, freq='1H'),
+            'timestamp': pd.date_range('2025-01-01', periods=200, freq='1h'),
             'score': np.random.uniform(-1, 1, 200),
             'source_count': np.random.randint(1, 10, 200)
         })
@@ -344,9 +344,10 @@ if __name__ == '__main__':
     # Создаем тестовый набор
     test_suite = unittest.TestSuite()
     
-    # Добавляем тесты
-    test_suite.addTest(unittest.makeSuite(TestRiskService))
-    test_suite.addTest(unittest.makeSuite(TestRiskIntegration))
+    # Добавляем тесты (используем новый API)
+    loader = unittest.TestLoader()
+    test_suite.addTest(loader.loadTestsFromTestCase(TestRiskService))
+    test_suite.addTest(loader.loadTestsFromTestCase(TestRiskIntegration))
     
     # Запускаем тесты
     runner = unittest.TextTestRunner(verbosity=2)
