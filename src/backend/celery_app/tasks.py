@@ -14,6 +14,12 @@ import numpy as np
 from typing import Optional, Dict, List, Any
 
 from core.database import db_helper
+from backend.app.monitoring.metrics import (
+    celery_tasks_total,
+    celery_task_duration_seconds,
+    ml_models_trained_total,
+    ml_models_tested_total,
+)
 from core.database.orm.market import (
     orm_get_timeseries_by_coin as market_get_ts,
     orm_get_data_timeseries as market_get_data,
@@ -870,6 +876,7 @@ def train_pred_time_task(self, config: dict):
         pred_time_service = PredTimeService()
         
         async def _run():
+            start_ts = time.time()
             async with db_helper.get_session() as session:
                 self.update_state(
                     state='PROGRESS',
@@ -882,6 +889,7 @@ def train_pred_time_task(self, config: dict):
                 )
                 
                 if result['status'] == 'success':
+                    ml_models_trained_total.labels(agent_type='AgentPredTime').inc()
                     self.update_state(
                         state='SUCCESS',
                         meta={
@@ -899,6 +907,9 @@ def train_pred_time_task(self, config: dict):
                         }
                     )
                 
+                duration = time.time() - start_ts
+                celery_task_duration_seconds.labels(task_name='train_pred_time_task').observe(duration)
+                celery_tasks_total.labels(task_name='train_pred_time_task', status=result.get('status','unknown')).inc()
                 return result
         
         return asyncio.run(_run())
@@ -931,6 +942,7 @@ def evaluate_pred_time_task(self, config: dict):
         pred_time_service = PredTimeService()
         
         async def _run():
+            start_ts = time.time()
             async with db_helper.get_session() as session:
                 self.update_state(
                     state='PROGRESS',
@@ -1074,7 +1086,10 @@ def evaluate_pred_time_task(self, config: dict):
                         'overall_metrics': overall_metrics
                     }
                 )
-                
+                ml_models_tested_total.labels(agent_type='AgentPredTime').inc()
+                duration = time.time() - start_ts
+                celery_task_duration_seconds.labels(task_name='evaluate_pred_time_task').observe(duration)
+                celery_tasks_total.labels(task_name='evaluate_pred_time_task', status='success').inc()
                 return {
                     'status': 'success',
                     'results': evaluation_results,

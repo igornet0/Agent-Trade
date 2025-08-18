@@ -1,5 +1,20 @@
 import React, { useState, useEffect } from 'react';
 import { mlService } from '../../services/mlService';
+import { Line, Bar } from 'react-chartjs-2';
+import {
+  Chart as ChartJS,
+  LineElement,
+  BarElement,
+  CategoryScale,
+  LinearScale,
+  PointElement,
+  Tooltip,
+  Legend,
+  TimeScale
+} from 'chart.js';
+import 'chartjs-adapter-date-fns';
+
+ChartJS.register(LineElement, BarElement, CategoryScale, LinearScale, PointElement, Tooltip, Legend, TimeScale);
 
 const TEST_METRICS = {
   'AgentNews': ['accuracy', 'precision', 'recall', 'f1_score', 'sentiment_accuracy'],
@@ -36,7 +51,7 @@ const ModelTester = () => {
 
   const loadModels = async () => {
     try {
-      const response = await mlService.getModels();
+      const response = await mlService.listModels();
       setModels(response.models || []);
     } catch (error) {
       console.error('Error loading models:', error);
@@ -51,7 +66,7 @@ const ModelTester = () => {
       setTaskStatus(status);
       
       if (status.state === 'SUCCESS') {
-        setTestResults(status.meta);
+        setTestResults(status.meta || status); // meta or full response
         setLoading(false);
         setTaskId(null);
       } else if (status.state === 'FAILURE') {
@@ -113,12 +128,63 @@ const ModelTester = () => {
     return value;
   };
 
+  const renderChart = (chart) => {
+    if (!chart || !chart.type) return null;
+    if (chart.type === 'line') {
+      const data = {
+        labels: (chart.data.labels || chart.data.actual?.map((_, i) => i) || []),
+        datasets: [
+          chart.data.actual && {
+            label: 'Actual',
+            data: chart.data.actual,
+            borderColor: 'rgba(99, 102, 241, 1)',
+            backgroundColor: 'rgba(99, 102, 241, 0.2)',
+            fill: false,
+            tension: 0.2
+          },
+          chart.data.predicted && {
+            label: 'Predicted',
+            data: chart.data.predicted,
+            borderColor: 'rgba(16, 185, 129, 1)',
+            backgroundColor: 'rgba(16, 185, 129, 0.2)',
+            fill: false,
+            tension: 0.2
+          }
+        ].filter(Boolean)
+      };
+      const options = {
+        responsive: true,
+        plugins: { legend: { position: 'top' } },
+        scales: { x: { display: true }, y: { display: true } }
+      };
+      return <Line data={data} options={options} />;
+    }
+    if (chart.type === 'histogram') {
+      const data = {
+        labels: chart.data.errors?.map((_, i) => i) || [],
+        datasets: [
+          {
+            label: 'Errors',
+            data: chart.data.errors || [],
+            backgroundColor: 'rgba(239, 68, 68, 0.6)'
+          }
+        ]
+      };
+      const options = {
+        responsive: true,
+        plugins: { legend: { display: false } },
+        scales: { x: { display: true }, y: { display: true } }
+      };
+      return <Bar data={data} options={options} />;
+    }
+    return null;
+  };
+
   return (
     <div className="space-y-6">
       <div className="bg-white rounded-lg shadow p-6">
         <h3 className="text-lg font-semibold mb-4">Model Testing</h3>
         
-        {/* Model Selection */}
         <div className="mb-4">
           <label className="block text-sm font-medium text-gray-700 mb-2">
             Select Model
@@ -152,7 +218,6 @@ const ModelTester = () => {
           </div>
         )}
 
-        {/* Test Configuration */}
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-2">
@@ -210,7 +275,6 @@ const ModelTester = () => {
           </div>
         </div>
 
-        {/* Test Button */}
         <button
           onClick={onTest}
           disabled={loading || !selectedModel || selectedCoins.length === 0}
@@ -219,7 +283,6 @@ const ModelTester = () => {
           {loading ? 'Testing...' : 'Start Test'}
         </button>
 
-        {/* Task Status */}
         {taskStatus && (
           <div className="mt-4 p-4 bg-blue-50 rounded-md">
             <div className="flex items-center justify-between">
@@ -248,12 +311,10 @@ const ModelTester = () => {
         )}
       </div>
 
-      {/* Test Results */}
       {testResults && (
         <div className="bg-white rounded-lg shadow p-6">
           <h3 className="text-lg font-semibold mb-4">Test Results</h3>
           
-          {/* Metrics Grid */}
           <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
             {Object.entries(testResults.test_results || {}).map(([key, value]) => {
               if (typeof value === 'number' && !key.includes('samples') && !key.includes('trades')) {
@@ -272,7 +333,20 @@ const ModelTester = () => {
             })}
           </div>
 
-          {/* Recommendations */}
+          {Array.isArray(testResults.test_results?.charts) && testResults.test_results.charts.length > 0 && (
+            <div className="mb-6">
+              <h4 className="font-medium mb-2">Performance Charts</h4>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                {testResults.test_results.charts.map((chart, idx) => (
+                  <div key={idx} className="bg-gray-50 p-3 rounded-md">
+                    <div className="text-sm font-medium text-gray-700 mb-2">{chart.title}</div>
+                    {renderChart(chart)}
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+
           {testResults.test_results?.recommendations && (
             <div className="mb-6">
               <h4 className="font-medium mb-2">Recommendations</h4>
@@ -284,25 +358,34 @@ const ModelTester = () => {
             </div>
           )}
 
-          {/* Charts Placeholder */}
-          <div className="mb-6">
-            <h4 className="font-medium mb-2">Performance Charts</h4>
-            <div className="bg-gray-100 p-8 rounded-md text-center text-gray-500">
-              Charts will be displayed here
-            </div>
-          </div>
-
-          {/* Confusion Matrix Placeholder */}
           {testResults.test_results?.confusion_matrix && (
             <div className="mb-6">
               <h4 className="font-medium mb-2">Confusion Matrix</h4>
-              <div className="bg-gray-100 p-8 rounded-md text-center text-gray-500">
-                Confusion matrix will be displayed here
+              <div className="overflow-x-auto">
+                <table className="min-w-full bg-white border border-gray-200">
+                  <thead>
+                    <tr>
+                      <th className="px-3 py-1 border-b"></th>
+                      {testResults.test_results.confusion_matrix.labels.map((l, i) => (
+                        <th key={i} className="px-3 py-1 border-b text-xs text-gray-600">Pred {l}</th>
+                      ))}
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {testResults.test_results.confusion_matrix.data.map((row, i) => (
+                      <tr key={i}>
+                        <td className="px-3 py-1 border-b text-xs text-gray-600">Actual {testResults.test_results.confusion_matrix.labels[i]}</td>
+                        {row.map((val, j) => (
+                          <td key={j} className="px-3 py-1 border-b text-xs text-gray-800">{val}</td>
+                        ))}
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
               </div>
             </div>
           )}
 
-          {/* Raw Results */}
           <details className="mt-6">
             <summary className="cursor-pointer font-medium text-gray-700">
               Raw Test Results

@@ -939,12 +939,47 @@ async def get_trade_aggregator_models(
 ):
     """Получение моделей Trade Aggregator для агента"""
     try:
-        # Здесь должна быть логика получения моделей из БД
-        # Пока возвращаем заглушку
+        import os
+        from pathlib import Path
+        import json
+        
+        models_dir = Path("models/models_pth/AgentTradeAggregator")
+        if not models_dir.exists():
+            return {"status": "success", "agent_id": agent_id, "models": [], "count": 0}
+        
+        agent_models = []
+        for model_dir in models_dir.iterdir():
+            if model_dir.is_dir() and str(agent_id) in model_dir.name:
+                config_file = model_dir / "config.json"
+                metadata_file = model_dir / "metadata.json"
+                
+                if config_file.exists() and metadata_file.exists():
+                    try:
+                        with open(config_file, 'r') as f:
+                            config = json.load(f)
+                        
+                        with open(metadata_file, 'r') as f:
+                            metadata = json.load(f)
+                        
+                        agent_models.append({
+                            'model_path': str(model_dir),
+                            'model_name': model_dir.name,
+                            'config': config,
+                            'metadata': metadata,
+                            'created_at': metadata.get('created_at'),
+                            'model_type': metadata.get('model_type')
+                        })
+                    except Exception as e:
+                        logger.warning(f"Failed to read model info from {model_dir}: {e}")
+                        continue
+        
+        agent_models.sort(key=lambda x: x.get('created_at', ''), reverse=True)
+        
         return {
+            "status": "success",
             "agent_id": agent_id,
-            "models": [],
-            "message": "Trade Aggregator models endpoint - implementation needed"
+            "models": agent_models,
+            "count": len(agent_models)
         }
         
     except Exception as e:
