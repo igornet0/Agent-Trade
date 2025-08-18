@@ -81,6 +81,54 @@ const pipelineService = {
   },
 
   /**
+   * Сохранение пайплайна
+   */
+  async savePipeline(pipelineConfig) {
+    try {
+      const response = await api.post('/api_db_agent/pipeline/save', {
+        pipeline_config: pipelineConfig
+      });
+      return response.data;
+    } catch (error) {
+      console.error('Error saving pipeline:', error);
+      throw error;
+    }
+  },
+
+  /**
+   * Загрузка пайплайна
+   */
+  async loadPipeline(pipelineId) {
+    try {
+      const response = await api.get(`/api_db_agent/pipeline/load/${pipelineId}`);
+      return response.data;
+    } catch (error) {
+      console.error('Error loading pipeline:', error);
+      throw error;
+    }
+  },
+
+  /**
+   * Отмена пайплайна
+   */
+  async revokePipeline(taskId) {
+    try {
+      const response = await api.post(`/api_db_agent/pipeline/revoke/${taskId}`);
+      return response.data;
+    } catch (error) {
+      console.error('Error revoking pipeline:', error);
+      throw error;
+    }
+  },
+
+  /**
+   * Получение списка бэктестов (alias для listBacktests)
+   */
+  async getBacktests(pipelineId = null, status = null, limit = 50) {
+    return this.listBacktests(pipelineId, status, limit);
+  },
+
+  /**
    * Скачивание артефакта
    */
   async downloadArtifact(artifactPath) {
@@ -228,6 +276,23 @@ const pipelineService = {
     return statusMap[status] || { label: status, color: 'secondary' };
   }
 };
+
+// Named exports for backward compatibility
+export const {
+  runPipeline,
+  getTaskStatus,
+  revokeTask,
+  listBacktests,
+  getBacktest,
+  downloadArtifact,
+  savePipeline,
+  loadPipeline,
+  revokePipeline,
+  getBacktests,
+  formatProgress,
+  formatMetrics,
+  getBacktestStatus
+} = pipelineService;
 
 export default pipelineService;
 
