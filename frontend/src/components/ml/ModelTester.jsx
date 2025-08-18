@@ -1,121 +1,112 @@
-import React, { useEffect, useState } from 'react';
-import { testModel, getModelMetrics, getTaskStatus } from '../../services/mlService';
-import { get_coins } from '../../services/strategyService';
+import React, { useState, useEffect } from 'react';
+import { mlService } from '../../services/mlService';
 
 const TEST_METRICS = {
-  AgentNews: ['accuracy', 'precision', 'recall', 'f1_score', 'sentiment_accuracy'],
-  AgentPredTime: ['mae', 'mse', 'rmse', 'mape', 'directional_accuracy'],
-  AgentTradeTime: ['accuracy', 'precision', 'recall', 'f1_score', 'profit_factor'],
-  AgentRisk: ['risk_accuracy', 'max_drawdown', 'sharpe_ratio', 'calmar_ratio'],
-  AgentTradeAggregator: ['total_return', 'sharpe_ratio', 'max_drawdown', 'win_rate', 'profit_factor']
+  'AgentNews': ['accuracy', 'precision', 'recall', 'f1_score', 'sentiment_accuracy'],
+  'AgentPredTime': ['mae', 'mse', 'rmse', 'mape', 'directional_accuracy'],
+  'AgentTradeTime': ['accuracy', 'precision', 'recall', 'f1_score', 'profit_factor', 'win_rate'],
+  'AgentRisk': ['risk_accuracy', 'max_drawdown', 'sharpe_ratio', 'calmar_ratio'],
+  'AgentTradeAggregator': ['total_return', 'sharpe_ratio', 'max_drawdown', 'win_rate', 'profit_factor']
 };
 
-const TIMEFRAMES = ['5m','15m','30m','1h','4h','1d'];
-
-export default function ModelTester() {
-  const [models, setModels] = useState([]);
+const ModelTester = () => {
   const [selectedModel, setSelectedModel] = useState(null);
-  const [coins, setCoins] = useState([]);
-  const [selectedCoinIds, setSelectedCoinIds] = useState([]);
-  const [timeframe, setTimeframe] = useState('5m');
+  const [models, setModels] = useState([]);
+  const [selectedCoins, setSelectedCoins] = useState([]);
   const [startDate, setStartDate] = useState('');
   const [endDate, setEndDate] = useState('');
-  const [testMetrics, setTestMetrics] = useState([]);
-  const [submitting, setSubmitting] = useState(false);
+  const [timeframe, setTimeframe] = useState('5m');
+  const [testResults, setTestResults] = useState(null);
+  const [loading, setLoading] = useState(false);
   const [taskId, setTaskId] = useState(null);
-  const [task, setTask] = useState(null);
-  const [results, setResults] = useState(null);
+  const [taskStatus, setTaskStatus] = useState(null);
 
   useEffect(() => {
-    const load = async () => {
-      try {
-        const [modelsData, coinsData] = await Promise.all([
-          getModels(),
-          get_coins()
-        ]);
-        setModels(modelsData);
-        setCoins(coinsData);
-      } catch (e) {
-        console.error(e);
-      }
-    };
-    load();
+    loadModels();
   }, []);
 
   useEffect(() => {
-    if (!taskId) return;
-    let timer;
-    const tick = async () => {
-      try {
-        const t = await getTaskStatus(taskId);
-        setTask(t);
-        if (t.ready) {
-          clearInterval(timer);
-          if (t.result) {
-            setResults(t.result);
-          }
-        }
-      } catch (e) { console.error(e); }
-    };
-    timer = setInterval(tick, 2000);
-    return () => clearInterval(timer);
+    if (taskId) {
+      const interval = setInterval(() => {
+        checkTaskStatus();
+      }, 2000);
+      return () => clearInterval(interval);
+    }
   }, [taskId]);
 
-  // Обновляем метрики при изменении модели
-  useEffect(() => {
-    if (selectedModel) {
-      const modelType = selectedModel.type;
-      setTestMetrics(TEST_METRICS[modelType] || []);
+  const loadModels = async () => {
+    try {
+      const response = await mlService.getModels();
+      setModels(response.models || []);
+    } catch (error) {
+      console.error('Error loading models:', error);
     }
-  }, [selectedModel]);
-
-  const getModels = async () => {
-    // TODO: Реализовать API для получения списка моделей
-    return [];
   };
 
-  const toggleCoin = (id) => {
-    setSelectedCoinIds((prev) => prev.includes(id) ? prev.filter(x => x !== id) : [...prev, id]);
+  const checkTaskStatus = async () => {
+    if (!taskId) return;
+    
+    try {
+      const status = await mlService.getTaskStatus(taskId);
+      setTaskStatus(status);
+      
+      if (status.state === 'SUCCESS') {
+        setTestResults(status.meta);
+        setLoading(false);
+        setTaskId(null);
+      } else if (status.state === 'FAILURE') {
+        console.error('Task failed:', status.meta);
+        setLoading(false);
+        setTaskId(null);
+      }
+    } catch (error) {
+      console.error('Error checking task status:', error);
+    }
   };
 
   const onTest = async () => {
-    if (!selectedModel || selectedCoinIds.length === 0) return;
-    setSubmitting(true);
+    if (!selectedModel || selectedCoins.length === 0) {
+      alert('Please select a model and at least one coin');
+      return;
+    }
+
+    setLoading(true);
+    setTestResults(null);
+
     try {
       const payload = {
         model_id: selectedModel.id,
-        coins: selectedCoinIds,
-        timeframe,
+        coins: selectedCoins,
+        timeframe: timeframe,
         start_date: startDate,
         end_date: endDate,
-        metrics: testMetrics
+        metrics: TEST_METRICS[selectedModel.type] || []
       };
 
-      const res = await testModel(payload);
-      if (res && res.task_id) setTaskId(res.task_id);
-      alert('Тестирование запущено');
-    } catch (e) {
-      console.error(e);
-      alert('Ошибка запуска тестирования');
-    } finally {
-      setSubmitting(false);
+      const response = await mlService.testModel(payload);
+      setTaskId(response.task_id);
+    } catch (error) {
+      console.error('Error starting test:', error);
+      setLoading(false);
     }
   };
 
   const getStatusColor = (status) => {
-    const colorMap = {
-      'open': 'bg-green-100 text-green-800',
-      'training': 'bg-yellow-100 text-yellow-800',
-      'error': 'bg-red-100 text-red-800',
-      'completed': 'bg-blue-100 text-blue-800'
-    };
-    return colorMap[status] || 'bg-gray-100 text-gray-800';
+    switch (status) {
+      case 'SUCCESS': return 'text-green-600';
+      case 'FAILURE': return 'text-red-600';
+      case 'PROGRESS': return 'text-blue-600';
+      default: return 'text-gray-600';
+    }
   };
 
-  const formatMetric = (metric, value) => {
+  const formatMetric = (key, value) => {
     if (typeof value === 'number') {
-      if (metric.includes('ratio') || metric.includes('rate') || metric.includes('accuracy')) {
+      if (key.includes('accuracy') || key.includes('precision') || key.includes('recall') || key.includes('rate')) {
         return `${(value * 100).toFixed(2)}%`;
+      }
+      if (key.includes('ratio') || key.includes('factor')) {
+        return value.toFixed(3);
       }
       return value.toFixed(4);
     }
@@ -123,224 +114,207 @@ export default function ModelTester() {
   };
 
   return (
-    <div className="bg-white rounded-2xl shadow-lg p-6 space-y-6">
-      <div className="flex items-center justify-between">
-        <div>
-          <h2 className="text-2xl font-bold text-gray-800">Тестирование модели</h2>
-          <p className="text-sm text-gray-600 mt-1">Оценка производительности ML-моделей на исторических данных</p>
-        </div>
-        <button 
-          onClick={onTest} 
-          disabled={submitting || !selectedModel || selectedCoinIds.length === 0}
-          className={`px-4 py-2 rounded-md font-medium ${
-            (!selectedModel || selectedCoinIds.length === 0) 
-              ? 'bg-gray-300 cursor-not-allowed' 
-              : 'bg-green-600 text-white hover:bg-green-700'
-          }`}
-        >
-          {submitting ? 'Запуск...' : 'Запустить тест'}
-        </button>
-      </div>
-
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-        <div>
-          <label className="block text-sm font-medium text-gray-700 mb-2">Выберите модель</label>
-          <select 
-            value={selectedModel?.id || ''} 
+    <div className="space-y-6">
+      <div className="bg-white rounded-lg shadow p-6">
+        <h3 className="text-lg font-semibold mb-4">Model Testing</h3>
+        
+        {/* Model Selection */}
+        <div className="mb-4">
+          <label className="block text-sm font-medium text-gray-700 mb-2">
+            Select Model
+          </label>
+          <select
+            className="w-full p-2 border border-gray-300 rounded-md"
+            value={selectedModel?.id || ''}
             onChange={(e) => {
-              const model = models.find(m => m.id === Number(e.target.value));
+              const model = models.find(m => m.id === parseInt(e.target.value));
               setSelectedModel(model);
-            }} 
-            className="w-full p-3 border border-gray-300 rounded-lg"
+            }}
           >
-            <option value="">Выберите модель для тестирования</option>
+            <option value="">Choose a model...</option>
             {models.map(model => (
               <option key={model.id} value={model.id}>
-                {model.name} ({model.type})
+                {model.name} ({model.type}) - {model.status}
               </option>
             ))}
           </select>
         </div>
-        <div>
-          <label className="block text-sm font-medium text-gray-700 mb-2">Таймфрейм</label>
-          <select 
-            value={timeframe} 
-            onChange={(e)=>setTimeframe(e.target.value)} 
-            className="w-full p-3 border border-gray-300 rounded-lg"
-          >
-            {TIMEFRAMES.map(tf => <option key={tf} value={tf}>{tf}</option>)}
-          </select>
-        </div>
-      </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-        <div>
-          <label className="block text-sm font-medium text-gray-700 mb-2">Начальная дата</label>
-          <input 
-            type="date" 
-            value={startDate} 
-            onChange={(e)=>setStartDate(e.target.value)} 
-            className="w-full p-3 border border-gray-300 rounded-lg" 
-          />
-        </div>
-        <div>
-          <label className="block text-sm font-medium text-gray-700 mb-2">Конечная дата</label>
-          <input 
-            type="date" 
-            value={endDate} 
-            onChange={(e)=>setEndDate(e.target.value)} 
-            className="w-full p-3 border border-gray-300 rounded-lg" 
-          />
-        </div>
-      </div>
-
-      {selectedModel && (
-        <div className="bg-gray-50 p-4 rounded-lg">
-          <h3 className="text-lg font-semibold text-gray-900 mb-4">Информация о модели</h3>
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-            <div>
-              <span className="text-sm text-gray-600">Название:</span>
-              <p className="font-medium">{selectedModel.name}</p>
+        {selectedModel && (
+          <div className="mb-4 p-4 bg-gray-50 rounded-md">
+            <h4 className="font-medium mb-2">Model Information</h4>
+            <div className="grid grid-cols-2 gap-2 text-sm">
+              <div><span className="font-medium">Type:</span> {selectedModel.type}</div>
+              <div><span className="font-medium">Timeframe:</span> {selectedModel.timeframe}</div>
+              <div><span className="font-medium">Status:</span> {selectedModel.status}</div>
+              <div><span className="font-medium">Version:</span> {selectedModel.version}</div>
             </div>
-            <div>
-              <span className="text-sm text-gray-600">Тип:</span>
-              <p className="font-medium">{selectedModel.type}</p>
-            </div>
-            <div>
-              <span className="text-sm text-gray-600">Статус:</span>
-              <span className={`px-2 py-1 text-xs rounded-full ${getStatusColor(selectedModel.status)}`}>
-                {selectedModel.status}
-              </span>
-            </div>
-            {selectedModel.timeframe && (
-              <div>
-                <span className="text-sm text-gray-600">Таймфрейм:</span>
-                <p className="font-medium">{selectedModel.timeframe}</p>
-              </div>
-            )}
-            {selectedModel.version && (
-              <div>
-                <span className="text-sm text-gray-600">Версия:</span>
-                <p className="font-medium">{selectedModel.version}</p>
-              </div>
-            )}
-            {selectedModel.created_at && (
-              <div>
-                <span className="text-sm text-gray-600">Создана:</span>
-                <p className="font-medium">{new Date(selectedModel.created_at).toLocaleDateString()}</p>
-              </div>
-            )}
           </div>
-        </div>
-      )}
+        )}
 
-      <div>
-        <label className="block text-sm font-medium text-gray-700 mb-2">Монеты для тестирования</label>
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-2 max-h-64 overflow-auto p-2 border rounded-lg">
-          {coins.map(c => (
-            <label key={c.id} className="flex items-center space-x-2">
-              <input 
-                type="checkbox" 
-                checked={selectedCoinIds.includes(c.id)} 
-                onChange={()=>toggleCoin(c.id)} 
-              />
-              <span>{c.name}</span>
+        {/* Test Configuration */}
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-2">
+              Coins (comma-separated IDs)
             </label>
-          ))}
-        </div>
-      </div>
-
-      {testMetrics.length > 0 && (
-        <div>
-          <label className="block text-sm font-medium text-gray-700 mb-2">Метрики для оценки</label>
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-2 p-2 border rounded-lg">
-            {testMetrics.map(metric => (
-              <label key={metric} className="flex items-center space-x-2">
-                <input 
-                  type="checkbox" 
-                  checked={testMetrics.includes(metric)} 
-                  onChange={(e) => {
-                    if (e.target.checked) {
-                      setTestMetrics(prev => [...prev, metric]);
-                    } else {
-                      setTestMetrics(prev => prev.filter(m => m !== metric));
-                    }
-                  }} 
-                />
-                <span className="text-sm">{metric}</span>
-              </label>
-            ))}
-          </div>
-        </div>
-      )}
-
-      {taskId && (
-        <div className="p-4 bg-gray-50 rounded-lg">
-          <div className="text-sm text-gray-600">Task: <span className="font-medium">{taskId}</span></div>
-          <div className="mt-2">
-            {task ? (
-              <div className="text-sm">
-                <div>Состояние: <span className="font-medium">{task.state}</span></div>
-                {task.meta && (
-                  <pre className="mt-2 text-xs bg-white p-3 rounded border overflow-auto max-h-64">
-                    {JSON.stringify(task.meta, null, 2)}
-                  </pre>
-                )}
-              </div>
-            ) : (
-              <div className="flex items-center text-gray-600">
-                <span className="animate-spin h-4 w-4 border-t-2 border-blue-500 rounded-full mr-2"/>
-                Ожидание...
-              </div>
-            )}
-          </div>
-        </div>
-      )}
-
-      {results && (
-        <div className="p-4 bg-green-50 rounded-lg">
-          <h3 className="text-lg font-semibold text-gray-900 mb-4">Результаты тестирования</h3>
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-            {Object.entries(results.metrics || {}).map(([metric, value]) => (
-              <div key={metric} className="bg-white p-3 rounded border">
-                <div className="text-sm text-gray-600 capitalize">{metric.replace(/_/g, ' ')}</div>
-                <div className="text-lg font-semibold text-gray-900">
-                  {formatMetric(metric, value)}
-                </div>
-              </div>
-            ))}
+            <input
+              type="text"
+              className="w-full p-2 border border-gray-300 rounded-md"
+              placeholder="1,2,3"
+              value={selectedCoins.join(',')}
+              onChange={(e) => setSelectedCoins(e.target.value.split(',').map(id => parseInt(id.trim())).filter(id => !isNaN(id)))}
+            />
           </div>
           
-          {results.charts && (
-            <div className="mt-6">
-              <h4 className="text-md font-semibold text-gray-900 mb-2">Графики</h4>
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                {results.charts.map((chart, index) => (
-                  <div key={index} className="bg-white p-3 rounded border">
-                    <div className="text-sm text-gray-600 mb-2">{chart.title}</div>
-                    <div className="h-48 bg-gray-100 rounded flex items-center justify-center">
-                      <span className="text-gray-500">График {chart.type}</span>
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-2">
+              Timeframe
+            </label>
+            <select
+              className="w-full p-2 border border-gray-300 rounded-md"
+              value={timeframe}
+              onChange={(e) => setTimeframe(e.target.value)}
+            >
+              <option value="5m">5 minutes</option>
+              <option value="15m">15 minutes</option>
+              <option value="30m">30 minutes</option>
+              <option value="1h">1 hour</option>
+              <option value="4h">4 hours</option>
+              <option value="1d">1 day</option>
+            </select>
+          </div>
+          
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-2">
+              Start Date
+            </label>
+            <input
+              type="date"
+              className="w-full p-2 border border-gray-300 rounded-md"
+              value={startDate}
+              onChange={(e) => setStartDate(e.target.value)}
+            />
+          </div>
+          
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-2">
+              End Date
+            </label>
+            <input
+              type="date"
+              className="w-full p-2 border border-gray-300 rounded-md"
+              value={endDate}
+              onChange={(e) => setEndDate(e.target.value)}
+            />
+          </div>
+        </div>
+
+        {/* Test Button */}
+        <button
+          onClick={onTest}
+          disabled={loading || !selectedModel || selectedCoins.length === 0}
+          className="w-full bg-blue-600 text-white py-2 px-4 rounded-md hover:bg-blue-700 disabled:bg-gray-400 disabled:cursor-not-allowed"
+        >
+          {loading ? 'Testing...' : 'Start Test'}
+        </button>
+
+        {/* Task Status */}
+        {taskStatus && (
+          <div className="mt-4 p-4 bg-blue-50 rounded-md">
+            <div className="flex items-center justify-between">
+              <span className="font-medium">Task Status:</span>
+              <span className={`font-medium ${getStatusColor(taskStatus.state)}`}>
+                {taskStatus.state}
+              </span>
+            </div>
+            {taskStatus.status && (
+              <p className="text-sm text-gray-600 mt-1">{taskStatus.status}</p>
+            )}
+            {taskStatus.current && taskStatus.total && (
+              <div className="mt-2">
+                <div className="w-full bg-gray-200 rounded-full h-2">
+                  <div 
+                    className="bg-blue-600 h-2 rounded-full transition-all duration-300"
+                    style={{ width: `${(taskStatus.current / taskStatus.total) * 100}%` }}
+                  ></div>
+                </div>
+                <p className="text-xs text-gray-500 mt-1">
+                  {taskStatus.current} / {taskStatus.total}
+                </p>
+              </div>
+            )}
+          </div>
+        )}
+      </div>
+
+      {/* Test Results */}
+      {testResults && (
+        <div className="bg-white rounded-lg shadow p-6">
+          <h3 className="text-lg font-semibold mb-4">Test Results</h3>
+          
+          {/* Metrics Grid */}
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
+            {Object.entries(testResults.test_results || {}).map(([key, value]) => {
+              if (typeof value === 'number' && !key.includes('samples') && !key.includes('trades')) {
+                return (
+                  <div key={key} className="bg-gray-50 p-3 rounded-md">
+                    <div className="text-sm font-medium text-gray-600 capitalize">
+                      {key.replace(/_/g, ' ')}
+                    </div>
+                    <div className="text-lg font-semibold">
+                      {formatMetric(key, value)}
                     </div>
                   </div>
+                );
+              }
+              return null;
+            })}
+          </div>
+
+          {/* Recommendations */}
+          {testResults.test_results?.recommendations && (
+            <div className="mb-6">
+              <h4 className="font-medium mb-2">Recommendations</h4>
+              <ul className="list-disc list-inside space-y-1 text-sm text-gray-700">
+                {testResults.test_results.recommendations.map((rec, index) => (
+                  <li key={index}>{rec}</li>
                 ))}
+              </ul>
+            </div>
+          )}
+
+          {/* Charts Placeholder */}
+          <div className="mb-6">
+            <h4 className="font-medium mb-2">Performance Charts</h4>
+            <div className="bg-gray-100 p-8 rounded-md text-center text-gray-500">
+              Charts will be displayed here
+            </div>
+          </div>
+
+          {/* Confusion Matrix Placeholder */}
+          {testResults.test_results?.confusion_matrix && (
+            <div className="mb-6">
+              <h4 className="font-medium mb-2">Confusion Matrix</h4>
+              <div className="bg-gray-100 p-8 rounded-md text-center text-gray-500">
+                Confusion matrix will be displayed here
               </div>
             </div>
           )}
 
-          {results.recommendations && (
-            <div className="mt-6">
-              <h4 className="text-md font-semibold text-gray-900 mb-2">Рекомендации</h4>
-              <div className="bg-white p-3 rounded border">
-                <ul className="list-disc list-inside space-y-1 text-sm text-gray-700">
-                  {results.recommendations.map((rec, index) => (
-                    <li key={index}>{rec}</li>
-                  ))}
-                </ul>
-              </div>
-            </div>
-          )}
+          {/* Raw Results */}
+          <details className="mt-6">
+            <summary className="cursor-pointer font-medium text-gray-700">
+              Raw Test Results
+            </summary>
+            <pre className="mt-2 p-4 bg-gray-100 rounded-md text-xs overflow-auto">
+              {JSON.stringify(testResults, null, 2)}
+            </pre>
+          </details>
         </div>
       )}
     </div>
   );
-}
+};
+
+export default ModelTester;
