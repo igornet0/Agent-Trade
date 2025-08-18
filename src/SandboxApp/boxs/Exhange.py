@@ -1,6 +1,9 @@
 from typing import List, Union
 import numpy as np
 import matplotlib.pyplot as plt
+import logging
+
+logger = logging.getLogger(__name__)
 
 from core.database import Coin, Agent, Transaction
 from .Box import Box
@@ -170,4 +173,4 @@ class Exhange(Box):
 
     def print_coins(self):
         for coin in self.coins:
-            print(coin)
+            logger.info(f"Processing coin: {coin}")

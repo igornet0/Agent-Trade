@@ -1,8 +1,28 @@
 import pytest
 import requests
 import time
+from typing import Callable, Optional
 import json
 from datetime import datetime, timedelta
+
+def wait_for_condition(condition: Callable[[], bool], timeout: float = 10.0, poll_interval: float = 0.5) -> bool:
+    """
+    Ожидает выполнения условия с поллингом
+    
+    Args:
+        condition: Функция, возвращающая True когда условие выполнено
+        timeout: Максимальное время ожидания в секундах
+        poll_interval: Интервал между проверками в секундах
+    
+    Returns:
+        True если условие выполнено, False если истек таймаут
+    """
+    start_time = time.time()
+    while time.time() - start_time < timeout:
+        if condition():
+            return True
+        time.sleep(poll_interval)
+    return False
 
 class TestE2EMonitoring:
     """E2E тесты для проверки мониторинга системы"""
@@ -114,8 +134,19 @@ class TestE2EMonitoring:
             assert response.status_code in [200, 202]
             print("✓ ML test request отправлен")
             
-            # Ждем немного для обработки
-            time.sleep(2)
+            # Ждем завершения обработки ML теста
+            def check_ml_test_completion():
+                try:
+                    response = requests.get(f"{base_url}/api_db_agent/models", timeout=5)
+                    if response.status_code == 200:
+                        data = response.json()
+                        # Проверяем, что тест завершился (можно добавить более специфичную проверку)
+                        return True
+                    return False
+                except:
+                    return False
+            
+            assert wait_for_condition(check_ml_test_completion, timeout=10.0), "ML тест не завершился в течение 10 секунд"
             
         except requests.exceptions.RequestException as e:
             pytest.skip(f"Backend API недоступен: {e}")

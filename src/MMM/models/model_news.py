@@ -1,9 +1,12 @@
 import re
+import logging
 import torch
 import torch.nn as nn
 from transformers import BertModel, BertTokenizer, AutoModelForSequenceClassification, AutoTokenizer
 from nltk.tokenize import sent_tokenize
 import nltk
+
+logger = logging.getLogger(__name__)
 
 nltk.download('punkt')
 
@@ -126,6 +129,6 @@ if __name__ == "__main__":
     # Анализ влияния
     impact_scores = model(news)
     
-    print("Влияние новости на криптовалюты:")
+    logger.info("Влияние новости на криптовалюты:")
     for crypto, score in impact_scores.items():
-        print(f"{crypto}: {score}")
+        logger.info(f"{crypto}: {score}")

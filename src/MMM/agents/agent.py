@@ -309,9 +309,9 @@ class Agent:
         new_data = new_data.dropna()
 
         if len(new_data) == 0:
-            print(f"Data columns: {data.columns} - {collumn}")
-            print(dd)
-            print(data)
+            logger.debug(f"Data columns: {data.columns} - {collumn}")
+            logger.debug(f"Data sample: {dd}")
+            logger.debug(f"Data shape: {data.shape}")
             raise ValueError("Data is empty")
         # else:
         #     print(f"Data shape: {new_data.shape}")

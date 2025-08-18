@@ -1,8 +1,11 @@
 import asyncio
+import logging
 from sqlalchemy.future import select
 from sqlalchemy.orm import joinedload, selectinload
 from sqlalchemy import update
 import json
+
+logger = logging.getLogger(__name__)
 
 from core import data_helper
 # from backend.MMM import AgentManager  # Temporarily disabled for testing
@@ -30,7 +33,7 @@ async def start_process_train(train_data: dict):
         process = result.scalars().first()
         
         if process and process.status == "start":
-            print(f"Запуск процесса ID: {process.id}")
+            logger.info(f"Запуск процесса ID: {process.id}")
             
             # Обновляем статус - начат
             process.set_status("train")
@@ -70,7 +73,7 @@ async def start_process_train(train_data: dict):
             
             def filter_func(x):
                 if x["open"] != "x" and isinstance(x["open"], str):
-                    print("ERORR !!!!!! - ", x)
+                    logger.error(f"Data validation error: {x}")
                     return True
                 return x["open"] != "x"
 
@@ -83,7 +86,7 @@ async def start_process_train(train_data: dict):
             loader = trin_loader.load_agent_data(loaders, agent_manager.get_agents(), process.batch_size, False)
 
             for data in loader:
-                print(data)
+                logger.debug(f"Training data batch: {data}")
 
             # trin_loader._train_single_agent(agent_manager.get_agents(), loaders,
             #                                 epochs=process.epochs,
@@ -94,7 +97,7 @@ async def start_process_train(train_data: dict):
             #                                 mixed=True,
             #                                 mixed_precision=True)
 
-            # print(agent_manager.get_agents())
+            # logger.debug(f"Agent manager agents: {agent_manager.get_agents()}")
 
             # with open(filename, "w") as f:
 
@@ -106,7 +109,7 @@ async def start_process_train(train_data: dict):
             # Например, вызов внешнего API или запуск асинхронного кода
             # await asyncio.sleep(600)  # Имитация длительной задачи
 
-            print(f"Процесс ID: {process.id} завершен")
+            logger.info(f"Процесс ID: {process.id} завершен")
             
             # Обновляем статус - завершен
             process.set_status("stop")
