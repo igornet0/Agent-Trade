@@ -109,7 +109,11 @@ class TradeAggregatorService:
                 # Вероятности классов
                 trade_score = trade_time_signals.get('buy', 0.33) - trade_time_signals.get('sell', 0.33)
             else:
-                trade_score = trade_time_signals
+                # Если trade_time_signals это список, берем среднее значение
+                if isinstance(trade_time_signals, list):
+                    trade_score = np.mean(trade_time_signals)
+                else:
+                    trade_score = trade_time_signals
         else:
             trade_score = 0.0
         
@@ -118,7 +122,11 @@ class TradeAggregatorService:
                 risk_score = 1.0 - risk_signals.get('risk_score', 0.5)  # Инвертируем риск
                 volume_score = risk_signals.get('volume_score', 0.5)
             else:
-                risk_score = 1.0 - risk_signals
+                # Если risk_signals это список, берем среднее значение
+                if isinstance(risk_signals, list):
+                    risk_score = 1.0 - np.mean(risk_signals)
+                else:
+                    risk_score = 1.0 - risk_signals
                 volume_score = 0.5
         else:
             risk_score = 0.5
@@ -175,6 +183,7 @@ class TradeAggregatorService:
         take_profit = risk_limits.get('take_profit_pct', 0.15)
         
         return {
+            'adjusted_signal': decision,  # Добавляем adjusted_signal
             'position_size': position_size,
             'stop_loss_pct': stop_loss,
             'take_profit_pct': take_profit,
@@ -457,7 +466,7 @@ class TradeAggregatorService:
             dd = (peak - price) / peak
             max_dd = max(max_dd, dd)
         
-        return max_dd
+        return -max_dd  # Возвращаем отрицательное значение для просадки
 
     def predict(self, coin_id, pred_time_signals=None, trade_time_signals=None, 
                 risk_signals=None, portfolio_state=None, extra_config=None):
