@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { mlService } from '../../services/mlService';
+import mlService from '../../services/mlService';
 
 const DataManager = () => {
   const [selectedCoins, setSelectedCoins] = useState([]);

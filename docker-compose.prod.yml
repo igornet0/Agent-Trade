@@ -1,0 +1,170 @@
+version: '3.9'
+services:
+  backend:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    env_file:
+      - settings/prod.env
+    ports:
+      - "8000:8000"
+    depends_on:
+      - redis
+      - postgres
+    networks:
+      - monitor
+    restart: unless-stopped
+    environment:
+      - NODE_ENV=production
+      - PYTHONPATH=/app/src
+
+  celery:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    command: poetry run celery -A src.backend.celery_app.create_app.celery_app worker -l INFO
+    env_file:
+      - settings/prod.env
+    depends_on:
+      - redis
+      - postgres
+    networks:
+      - monitor
+    restart: unless-stopped
+    environment:
+      - NODE_ENV=production
+      - PYTHONPATH=/app/src
+
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile.prod
+    ports:
+      - "80:80"
+      - "443:443"
+    networks:
+      - monitor
+    restart: unless-stopped
+    depends_on:
+      - backend
+
+  redis:
+    image: redis:7-alpine
+    ports:
+      - "6379:6379"
+    networks:
+      - monitor
+    restart: unless-stopped
+    volumes:
+      - redis_data:/data
+
+  postgres:
+    image: postgres:15-alpine
+    environment:
+      POSTGRES_DB: agent
+      POSTGRES_USER: agent
+      POSTGRES_PASSWORD: ${DB_PASSWORD:-agent}
+    ports:
+      - "5432:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+      - ./backups:/backups
+    networks:
+      - monitor
+    restart: unless-stopped
+
+  prometheus:
+    image: prom/prometheus:latest
+    volumes:
+      - ./settings/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - ./settings/alert_rules.yml:/etc/prometheus/alert_rules.yml:ro
+      - prometheus_data:/prometheus
+    command:
+      - --config.file=/etc/prometheus/prometheus.yml
+      - --storage.tsdb.path=/prometheus
+      - --web.console.libraries=/etc/prometheus/console_libraries
+      - --web.console.templates=/etc/prometheus/consoles
+      - --storage.tsdb.retention.time=200h
+      - --web.enable-lifecycle
+    ports:
+      - "9090:9090"
+    networks:
+      - monitor
+    restart: unless-stopped
+
+  grafana:
+    image: grafana/grafana:latest
+    ports:
+      - "3000:3000"
+    environment:
+      - GF_SECURITY_ADMIN_PASSWORD=${GRAFANA_PASSWORD:-admin}
+      - GF_INSTALL_PLUGINS=grafana-clock-panel,grafana-simple-json-datasource
+    volumes:
+      - grafana_data:/var/lib/grafana
+      - ./settings/grafana-dashboards:/etc/grafana/provisioning/dashboards
+    networks:
+      - monitor
+    restart: unless-stopped
+
+  alertmanager:
+    image: prom/alertmanager:latest
+    volumes:
+      - ./settings/alertmanager.yml:/etc/alertmanager/alertmanager.yml:ro
+      - alertmanager_data:/alertmanager
+    command:
+      - --config.file=/etc/alertmanager/alertmanager.yml
+      - --storage.path=/alertmanager
+    ports:
+      - "9093:9093"
+    networks:
+      - monitor
+    restart: unless-stopped
+
+  nginx:
+    image: nginx:alpine
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./nginx.conf:/etc/nginx/nginx.conf:ro
+      - ./ssl:/etc/nginx/ssl:ro
+    networks:
+      - monitor
+    restart: unless-stopped
+    depends_on:
+      - backend
+      - frontend
+
+  # Backup service
+  backup:
+    image: postgres:15-alpine
+    volumes:
+      - ./backups:/backups
+      - pgdata:/var/lib/postgresql/data
+    environment:
+      POSTGRES_DB: agent
+      POSTGRES_USER: agent
+      POSTGRES_PASSWORD: ${DB_PASSWORD:-agent}
+    command: |
+      sh -c '
+        while true; do
+          pg_dump -h postgres -U agent -d agent > /backups/backup_$$(date +%Y%m%d_%H%M%S).sql
+          sleep 86400
+        done
+      '
+    networks:
+      - monitor
+    restart: unless-stopped
+    depends_on:
+      - postgres
+
+networks:
+  monitor:
+    driver: bridge
+
+volumes:
+  pgdata:
+  redis_data:
+  prometheus_data:
+  grafana_data:
+  alertmanager_data:

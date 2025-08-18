@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { mlService } from '../../services/mlService';
+import mlService from '../../services/mlService';
 import { Line, Bar } from 'react-chartjs-2';
 import {
   Chart as ChartJS,
