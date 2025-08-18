@@ -4,8 +4,8 @@ from fastapi import APIRouter, Depends, HTTPException
 from fastapi.security import HTTPBearer
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from core.database.orm_query import (User, Transaction, Portfolio, 
-                                     orm_get_transactions_by_id,
+from core.database.models import User, Transaction, Portfolio
+from core.database.orm.transactions import (orm_get_transactions_by_id,
                                      orm_get_user_transactions,
                                      orm_get_user_coin_transactions,
                                      orm_get_coin_portfolio)

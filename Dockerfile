@@ -20,8 +20,9 @@ COPY . .
 
 EXPOSE 8000
 
-CMD ["uvicorn", "run_app:main_app", "--host", "0.0.0.0", "--port", "8000"]
+# Используем упрощенную версию для запуска
+CMD ["python", "run_app_simple.py"]
 
 FROM base AS worker
-CMD ["celery", "-A", "backend.celery_app.create_app.celery_app", "worker", "-l", "INFO"]
+CMD ["celery", "-A", "src.backend.celery_app.create_app.celery_app", "worker", "-l", "INFO"]
 

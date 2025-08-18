@@ -42,15 +42,15 @@ from core.utils.metrics import (
     exposure_stats,
 )
 from core.database.models.main_models import NewsHistoryCoin, News
-from core.database.models.process_models import Backtest as BacktestModel
+from core.database.models.main_models import Backtest as BacktestModel
 from core.database.orm import (
     orm_get_agent_by_id,
     orm_get_train_agent,
     orm_get_timeseries_by_coin,
     orm_get_data_timeseries,
 )
-from backend.Dataset.loader import LoaderTimeLine
-from backend.train_models.loader import Loader
+from Dataset.loader import LoaderTimeLine
+from train_models.loader import Loader
 
 logger = logging.getLogger("celery.train")
 
@@ -1102,7 +1102,7 @@ def evaluate_pred_time_task(self, config: dict):
         logger.exception("evaluate_pred_time_task failed")
         return {"status": "error", "detail": str(e)}
 
-@app.task(bind=True)
+@celery_app.task(bind=True)
 def train_trade_time_task(self, coin_id: str, start_date: str, end_date: str, extra_config: Optional[Dict] = None):
     """Задача для обучения Trade_time модели"""
     try:
@@ -1117,7 +1117,7 @@ def train_trade_time_task(self, coin_id: str, start_date: str, end_date: str, ex
         logger.error(f"Error in train_trade_time_task: {e}")
         raise self.retry(countdown=60, max_retries=3)
 
-@app.task(bind=True)
+@celery_app.task(bind=True)
 def evaluate_trade_time_task(self, coin_id: str, start_date: str, end_date: str, extra_config: Optional[Dict] = None):
     """Задача для оценки Trade_time модели"""
     try:
@@ -1132,7 +1132,7 @@ def evaluate_trade_time_task(self, coin_id: str, start_date: str, end_date: str,
         logger.error(f"Error in evaluate_trade_time_task: {e}")
         raise self.retry(countdown=60, max_retries=3)
 
-@app.task(bind=True)
+@celery_app.task(bind=True)
 def train_risk_task(self, coin_id: str, start_date: str, end_date: str, extra_config: Optional[Dict] = None):
     """Задача для обучения Risk модели"""
     try:
@@ -1147,7 +1147,7 @@ def train_risk_task(self, coin_id: str, start_date: str, end_date: str, extra_co
         logger.error(f"Error in train_risk_task: {e}")
         raise self.retry(countdown=60, max_retries=3)
 
-@app.task(bind=True)
+@celery_app.task(bind=True)
 def evaluate_risk_task(self, coin_id: str, start_date: str, end_date: str, extra_config: Optional[Dict] = None):
     """Задача для оценки Risk модели"""
     try:
@@ -1162,7 +1162,7 @@ def evaluate_risk_task(self, coin_id: str, start_date: str, end_date: str, extra
         logger.error(f"Error in evaluate_risk_task: {e}")
         raise self.retry(countdown=60, max_retries=3)
 
-@app.task(bind=True)
+@celery_app.task(bind=True)
 def train_trade_aggregator_task(self, coin_id: str, start_date: str, end_date: str, extra_config: Optional[Dict] = None):
     """Задача для обучения Trade Aggregator модели"""
     try:
@@ -1177,7 +1177,7 @@ def train_trade_aggregator_task(self, coin_id: str, start_date: str, end_date: s
         logger.error(f"Error in train_trade_aggregator_task: {e}")
         raise self.retry(countdown=60, max_retries=3)
 
-@app.task(bind=True)
+@celery_app.task(bind=True)
 def evaluate_trade_aggregator_task(self, coin_id: str, start_date: str, end_date: str, extra_config: Optional[Dict] = None):
     """Задача для оценки Trade Aggregator модели"""
     try:
@@ -1200,7 +1200,7 @@ def test_model_task(self, model_id: int, coins: List[int], timeframe: str,
     try:
         from core.database.engine import get_db
         from core.database.models.ML_models import Agent
-        from core.database.models.Strategy_models import StatisticAgent
+        from core.database.models.ML_models import StatisticAgent
         from datetime import datetime
         import json
         

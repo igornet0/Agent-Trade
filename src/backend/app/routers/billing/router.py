@@ -2,7 +2,7 @@ from fastapi import APIRouter, Depends, Header, HTTPException
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from backend.app.configuration import Server, verify_authorization
-from core.database.orm_query import orm_apply_balance_operation
+# from core.database.orm_query import orm_apply_balance_operation
 
 router = APIRouter(
     prefix="/billing",

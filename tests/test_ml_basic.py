@@ -2,7 +2,7 @@ import pytest
 from datetime import datetime, timedelta
 from src.core.database.models.main_models import Coin, Timeseries, DataTimeseries
 from src.core.database.models.ML_models import Agent
-from src.core.database.models.Strategy_models import StatisticAgent
+from src.core.database.models.ML_models import StatisticAgent
 
 
 def test_create_sample_data():

@@ -4,6 +4,7 @@ services:
     build:
       context: .
       dockerfile: Dockerfile
+    command: python run_app_simple.py
     env_file:
       - settings/prod.env
     ports:
@@ -39,9 +40,6 @@ services:
     build:
       context: ./frontend
       dockerfile: Dockerfile.prod
-    ports:
-      - "80:80"
-      - "443:443"
     networks:
       - monitor
     restart: unless-stopped

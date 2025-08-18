@@ -1,12 +1,12 @@
 from jose import jwt, JWTError
 from sqlalchemy.ext.asyncio import AsyncSession
-from fastapi import APIRouter, HTTPException, Depends, status, Body
+from fastapi import APIRouter, HTTPException, Depends, status, Body, Request
 from fastapi.security import (HTTPBearer,
                               OAuth2PasswordRequestForm)
 from datetime import timedelta
 
 from core import settings
-from core.database.orm_query import orm_get_user_by_email, orm_get_user_by_login, orm_add_user
+from core.database.orm.users import orm_get_user_by_email, orm_get_user_by_login, orm_add_user
 
 from backend.app.configuration import (Server, 
                                        get_password_hash,
@@ -14,8 +14,8 @@ from backend.app.configuration import (Server,
                                        Token,
                                        verify_password, is_email,
                                        create_access_token,
-                                       verify_authorization,
-                                       create_refresh_token)
+                                       verify_authorization)
+from backend.app.configuration.auth import create_refresh_token
 
 import logging
 
@@ -60,44 +60,64 @@ async def register(user: UserLoginResponse = Body(), session: AsyncSession = Dep
 
 
 @router.post("/login_user/", response_model=Token)
-async def login_for_access_token(form_data: OAuth2PasswordRequestForm = Depends(), session: AsyncSession = Depends(Server.get_db)):
+async def login_for_access_token(
+    request: Request,
+    session: AsyncSession = Depends(Server.get_db),
+):
     
     unauthed_exc = HTTPException(
         status_code=status.HTTP_401_UNAUTHORIZED,
         detail="Could not validate credentials",
         headers={"WWW-Authenticate": "Bearer"},
     )
-    identifier_type = "email" if is_email(form_data.username) else "login"
+    
+    # Try to get data from JSON body first
+    try:
+        body = await request.json()
+        username = body.get("email") or body.get("login") or body.get("username")
+        password = body.get("password")
+    except:
+        # If JSON parsing fails, try form data
+        form_data = await request.form()
+        username = form_data.get("username") or form_data.get("email") or form_data.get("login")
+        password = form_data.get("password")
 
+    if not username or not password:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail="Username/email and password are required"
+        )
+
+    identifier_type = "email" if is_email(username) else "login"
+    
     if identifier_type == "email":
-        user = await orm_get_user_by_email(session, UserLoginResponse(email=form_data.username, password=form_data.password))
+        user = await orm_get_user_by_email(session, UserLoginResponse(email=username, password=password))
     else:
-        user = await orm_get_user_by_login(session, UserLoginResponse(login=form_data.username, password=form_data.password))
+        user = await orm_get_user_by_login(session, UserLoginResponse(login=username, password=password))
 
     if not user:
         raise unauthed_exc
-    
-    if not verify_password(
-        plain_password=form_data.password,
-        hashed_password=user.password,
-    ):
+
+    if not verify_password(password, user.password):
         raise unauthed_exc
-    
+
     if not user.active:
         raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="user inactive",
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Inactive user"
         )
-    
-    access_token_expires = timedelta(minutes=settings.security.access_token_expire_minutes)
 
+    access_token_expires = timedelta(minutes=settings.security.access_token_expire_minutes)
     access_token = create_access_token(payload={"sub": user.login, "email": user.email}, 
-                                       expires_delta=access_token_expires)
+                                        expires_delta=access_token_expires)
     refresh_token = create_refresh_token(payload={"sub": user.login, "email": user.email})
-    return {"access_token": access_token,
-            "refresh_token": refresh_token,
-            "token_type": "bearer",
-            "message": "User logged in successfully"}
+
+    return Token(
+        access_token=access_token,
+        refresh_token=refresh_token,
+        token_type="bearer",
+        message="User logged in successfully"
+    )
 
 
 @router.post("/refresh-token/", response_model=Token)

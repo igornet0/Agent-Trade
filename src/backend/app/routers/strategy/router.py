@@ -1,11 +1,9 @@
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from core.database.orm_query import (
-    orm_get_coins,
-    orm_get_agents,
-    orm_get_models,
-)
+from core.database.orm.market import orm_get_coins
+from core.database.orm.agents import orm_get_agents
+from core.database.orm.data import orm_get_models_list as orm_get_models
 from core.database.models import Strategy, StrategyAgent, StrategyCoin
 from core.database.orm import (
     orm_list_strategies_for_user,
@@ -21,10 +19,10 @@ from backend.app.configuration import (
     verify_authorization,
 )
 from backend.app.configuration.schemas.strategy import (
-    StrategyCreate,
     StrategyResponse,
     StrategyModelsUpdate,
 )
+from backend.app.configuration.schemas.strategy import StrategyCreate
 
 # Инициализация роутера
 router = APIRouter(

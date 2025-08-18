@@ -4,6 +4,7 @@ from fastapi import FastAPI
 
 from .tasks import tasks
 from .rabbitmq_server import rabbit
+from core import settings
 from core.database.engine import set_db_helper
 
 import logging
@@ -19,13 +20,16 @@ async def app_lifespan(app: FastAPI):
         db = await set_db_helper()
         await db.init_db()
         logger.info("Starting application...")
-        await rabbit.setup_dlx()
-        asyncio.create_task(rabbit.consume_messages("process_queue", tasks.start_process_train))
+        # Only initialize RabbitMQ wiring if explicitly enabled
+        if settings.run.enable_rabbit:
+            await rabbit.setup_dlx()
+            asyncio.create_task(rabbit.consume_messages("process_queue", tasks.start_process_train))
         logger.info("Application startup complete")
         yield
     finally:
         logger.info("Shutting down application...")
         if db := await set_db_helper():
             await db.dispose()
-        await rabbit.close()
+        if settings.run.enable_rabbit:
+            await rabbit.close()
         logger.info("Application shutdown complete")

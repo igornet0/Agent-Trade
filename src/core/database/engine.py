@@ -100,7 +100,7 @@ class Database:
 
     async def _create_tables(self):
         # from core import data_helper
-        # from backend.Dataset import Indicators
+        # from Dataset import Indicators
         # from core.database.orm_query import (orm_add_coin, orm_add_feature, 
         #                                      orm_get_feature_by_name,
         #                                      orm_add_feature_argument)

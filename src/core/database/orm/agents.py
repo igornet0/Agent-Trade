@@ -5,8 +5,9 @@ from sqlalchemy.orm import joinedload, selectinload
 
 from core.database.models import (
     Agent, AgentFeature, AgentFeatureValue, Feature,
-    AgentTrain, TrainCoin, AgentType, StatisticAgent
+    AgentTrain, TrainCoin, AgentType
 )
+from core.database.models.ML_models import StatisticAgent
 
 
 async def orm_get_feature_by_id(session: AsyncSession, feature_id: int) -> Feature:
@@ -98,40 +99,35 @@ async def orm_add_agent(session: AsyncSession, agent_data: Agent):
     }, train_data
 
 
-async def orm_get_train_agents(session: AsyncSession, status: str = None) -> list[AgentTrain]:
-    query = select(AgentTrain)
-    if status:
-        query = query.where(AgentTrain.status == status)
-    result = await session.execute(query)
-    return result.scalars().all()
-
-
-async def orm_get_train_agent(session: AsyncSession, agent_id: int, status: str = None) -> list[AgentTrain]:
-    query = select(AgentTrain).where(AgentTrain.agent_id == agent_id)
-    if status:
-        query = query.where(AgentTrain.status == status)
-    result = await session.execute(query)
-    return result.scalars().all()
-
-
 async def orm_get_agent_feature(session: AsyncSession, agent_id: int) -> list[AgentFeature]:
     query = select(AgentFeature).where(AgentFeature.agent_id == agent_id)
     result = await session.execute(query)
     return result.scalars().all()
 
 
+async def orm_get_train_agent(session: AsyncSession, agent_id: int) -> list[AgentTrain]:
+    query = select(AgentTrain).where(AgentTrain.agent_id == agent_id)
+    result = await session.execute(query)
+    return result.scalars().all()
+
+
+async def orm_get_train_agents(session: AsyncSession) -> list[AgentTrain]:
+    query = select(AgentTrain)
+    result = await session.execute(query)
+    return result.scalars().all()
+
+
 async def orm_get_agents(session: AsyncSession, type_agent: str = None,
-                         agent_id: int = None, version: str = None,
-                         active: bool = None, query_return: bool = False,
-                         status: Literal["train", "open", "close"] = None):
+                 id_agent: int = None, version: str = None,
+                 active: bool = None, query_return: bool = False) -> list[Agent]:
     query = select(Agent)
     if type_agent:
         query = query.where(Agent.type == type_agent)
-    if agent_id:
-        query = query.where(Agent.id == agent_id)
+    if id_agent:
+        query = query.where(Agent.id == id_agent)
     if version:
         query = query.where(Agent.version == version)
-    if active:
+    if active is not None:
         query = query.where(Agent.active == active)
     if status:
         query = query.where(Agent.status == status)
@@ -229,5 +225,22 @@ async def orm_set_active_version(session: AsyncSession, agent_id: int):
     await session.execute(update(Agent).where(Agent.name == agent.name).values(active=False))
     await session.execute(update(Agent).where(Agent.id == agent_id).values(active=True))
     await session.commit()
+
+
+async def orm_get_features(session: AsyncSession) -> List[dict]:
+    """Получает все доступные фичи (индикаторы)"""
+    query = select(Feature)
+    result = await session.execute(query)
+    features = result.scalars().all()
+    
+    features_data = []
+    for feature in features:
+        features_data.append({
+            "id": feature.id,
+            "name": feature.name,
+            "arguments": []  # Пока возвращаем пустой список аргументов
+        })
+    
+    return features_data
 
 

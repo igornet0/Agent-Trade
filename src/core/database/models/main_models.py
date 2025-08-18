@@ -15,6 +15,8 @@ class NewsCoin(Base):
 
 
 class Coin(Base):
+    __tablename__ = "coins"
+    __table_args__ = {'extend_existing': True}
 
     id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True)
     name: Mapped[str] = mapped_column(String(50), unique=True)
@@ -51,6 +53,8 @@ class Coin(Base):
 
 
 class User(Base):
+    __tablename__ = "users"
+    __table_args__ = {'extend_existing': True}
 
     id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True)
     login: Mapped[str] = mapped_column(String(50), unique=True, nullable=False)
@@ -67,6 +71,12 @@ class User(Base):
 
 
 class Portfolio(Base):
+    __tablename__ = "portfolio"
+    __table_args__ = (
+        UniqueConstraint('user_id', 'coin_id', name='uq_portfolio_user_coin'),
+        CheckConstraint('amount >= 0', name='ck_portfolio_amount_non_negative'),
+        {'extend_existing': True}
+    )
 
     id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True)
     user_id: Mapped[int] = mapped_column(ForeignKey('users.id'))
@@ -76,14 +86,11 @@ class Portfolio(Base):
     
     coin: Mapped['Coin'] = relationship(back_populates='portfolio')
     user: Mapped['User'] = relationship(back_populates='portfolio')
-
-    __table_args__ = (
-        UniqueConstraint('user_id', 'coin_id', name='uq_portfolio_user_coin'),
-        CheckConstraint('amount >= 0', name='ck_portfolio_amount_non_negative'),
-    )
     
 
 class Timeseries(Base):
+    __tablename__ = "timeseries"
+    __table_args__ = {'extend_existing': True}
 
     id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True)
     coin_id: Mapped[int] = mapped_column(ForeignKey('coins.id'))  
@@ -94,6 +101,8 @@ class Timeseries(Base):
 
 
 class DataTimeseries(Base):
+    __tablename__ = "data_timeseries"
+    __table_args__ = {'extend_existing': True}
 
     id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True)
     timeseries_id: Mapped[int] = mapped_column(ForeignKey('timeseries.id'))  
@@ -105,6 +114,8 @@ class DataTimeseries(Base):
     volume: Mapped[Float] = mapped_column(Float)
 
 class Transaction(Base):
+    __tablename__ = "transactions"
+    __table_args__ = {'extend_existing': True}
 
     id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True)
     status: Mapped[str] = mapped_column(String(30), default="open")
@@ -185,7 +196,7 @@ class NewsBackground(Base):
     coin = relationship("Coin", back_populates="news_background")
     
     class Config:
-        orm_mode = True
+        from_attributes = True
 
 
 class Artifact(Base):
@@ -208,7 +219,7 @@ class Artifact(Base):
     )
     
     class Config:
-        orm_mode = True
+        from_attributes = True
 
 
 class Backtest(Base):
@@ -234,7 +245,7 @@ class Backtest(Base):
     pipeline = relationship("Pipeline", back_populates="backtests")
     
     class Config:
-        orm_mode = True
+        from_attributes = True
 
 
 class Pipeline(Base):
@@ -253,4 +264,4 @@ class Pipeline(Base):
     backtests = relationship("Backtest", back_populates="pipeline")
     
     class Config:
-        orm_mode = True
+        from_attributes = True

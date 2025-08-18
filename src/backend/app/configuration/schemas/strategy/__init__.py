@@ -1,6 +1,6 @@
 __all__ = ("AgentAction", "Agent", 
-            "StrategyResponse", "CreateStrategyResponse")
+            "StrategyResponse", "CreateStrategyResponse", "StrategyCreate", "StrategyModelsUpdate")
 
 from .strategy_trade import AgentAction, Agent
-from .strategy import StrategyResponse, CreateStrategyResponse
+from .strategy import StrategyResponse, CreateStrategyResponse, StrategyCreate, StrategyModelsUpdate
 

@@ -4,9 +4,8 @@ from fastapi import APIRouter, Depends, HTTPException, Query, Response, File, Fo
 from fastapi.security import HTTPBearer
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from core.database.orm_query import (User, Agent, Transaction, Portfolio, 
-                                     AgentFeature,
-                                     orm_get_train_agent,
+from core.database.models import User, Agent, Transaction, Portfolio, AgentFeature
+from core.database.orm.agents import (orm_get_train_agent,
                                      orm_delete_agent,
                                      orm_get_agent_by_name,
                                      orm_get_train_agents,
@@ -15,10 +14,10 @@ from core.database.orm_query import (User, Agent, Transaction, Portfolio,
                                      orm_get_agent_by_id,
                                      orm_get_agents_type,
                                      orm_get_features,
-                                     orm_get_user_transactions,
-                                     orm_get_user_coin_transactions,
-                                     orm_get_coin_portfolio,
                                      orm_set_active_version)
+from core.database.orm.transactions import (orm_get_user_transactions,
+                                     orm_get_user_coin_transactions,
+                                     orm_get_coin_portfolio)
 
 from backend.app.configuration import (Server, 
                                        rabbit,

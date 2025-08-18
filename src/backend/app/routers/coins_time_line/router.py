@@ -3,21 +3,18 @@ from datetime import datetime
 from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from core.database.orm_query import (Coin, User, Transaction, Portfolio, 
-                                     DataTimeseries,
-                                     orm_get_coins,
-                                     orm_get_coin_by_id,
-                                     orm_get_data_timeseries,
-                                     paginate_coin_prices,
-                                     orm_get_agents,
-                                     orm_get_models,
-                                     orm_get_transactions_by_id,
-                                     orm_get_user_transactions,
-                                     orm_get_user_coin_transactions,
-                                     orm_get_coin_portfolio)
+from core.database.models import Coin, User, Transaction, Portfolio, DataTimeseries
+from core.database.orm.market import (orm_get_coins, orm_get_coin_by_id, 
+                                     orm_get_data_timeseries, paginate_coin_prices)
+from core.database.orm.agents import orm_get_agents
+from core.database.orm.data import orm_get_models_list as orm_get_models
+from core.database.orm.transactions import (orm_get_transactions_by_id,
+                                           orm_get_user_transactions,
+                                           orm_get_user_coin_transactions,
+                                           orm_get_coin_portfolio)
 
 from src.Dataset import DatasetTimeseries
-from app.configuration import (Server,
+from backend.app.configuration import (Server,
                                 TimeLineCoin,
                                 CoinData,
                                 CoinResponse,

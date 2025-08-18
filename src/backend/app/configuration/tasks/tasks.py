@@ -6,8 +6,8 @@ import json
 
 from core import data_helper
 # from backend.MMM import AgentManager  # Temporarily disabled for testing
-# from backend.Dataset import LoaderTimeLine, DatasetTimeseries  # Temporarily disabled for testing
-# from backend.train_models import Loader as TrainLoader  # Temporarily disabled for testing
+# from Dataset import LoaderTimeLine, DatasetTimeseries  # Temporarily disabled for testing
+# from train_models import Loader as TrainLoader  # Temporarily disabled for testing
 
 from core.database import (db_helper, AgentTrain, Agent, AgentFeature,
                            orm_get_feature_by_id,

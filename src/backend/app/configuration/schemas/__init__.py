@@ -31,4 +31,5 @@ from .agent import (AgentResponse, AgentTypeResponse, FeatureTypeResponse,
                                                      TrainRequest,
                                                      NewsTrainConfig, PredTimeTrainConfig, TradeTimeTrainConfig, RiskTrainConfig, TradeAggregatorConfig)
 from .strategy import (CreateStrategyResponse, StrategyResponse)
+from .strategy import StrategyCreate
 from .pipeline import PipelineConfig

@@ -9,7 +9,7 @@ from typing import AsyncGenerator
 
 from backend.app.configuration.routers import Routers
 from core import settings
-from core.database import db_helper
+from core.database import db_helper  # only for type; do not rely on this binding at runtime
 from backend.app.middleware.observability import ObservabilityMiddleware
 
 class Server:
@@ -31,7 +31,12 @@ class Server:
 
     @staticmethod
     async def get_db() -> AsyncGenerator[AsyncSession, None]:
-        async with db_helper.get_session() as session:
+        # Lazily ensure db_helper is initialized (read the live binding from engine module)
+        from core.database.engine import set_db_helper, db_helper as engine_db_helper
+        if engine_db_helper is None:
+            await set_db_helper()
+        from core.database.engine import db_helper as live_db_helper
+        async with live_db_helper.get_session() as session:
             yield session
 
     def get_app(self) -> FastAPI:

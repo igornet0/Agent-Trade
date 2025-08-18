@@ -85,7 +85,7 @@ class AgentCreate(BaseModel):
 
 class TrainData(BaseModel):
     class Config:
-        orm_mode = True
+        from_attributes = True
 
     id: Optional[int] = None
     agent_id: Optional[int] = None
@@ -102,7 +102,7 @@ class TrainData(BaseModel):
 
 class AgentTrainResponse(BaseModel):
     class Config:
-        orm_mode = True
+        from_attributes = True
 
     id: Optional[int] = None
     name: str
@@ -126,7 +126,7 @@ class AgentTrainResponse(BaseModel):
 
 class AgentResponse(BaseModel):
     class Config:
-        orm_mode = True
+        from_attributes = True
 
     id: Optional[int] = None
     name: str
@@ -150,7 +150,7 @@ class AgentResponse(BaseModel):
 
 class EvaluateRequest(BaseModel):
     class Config:
-        orm_mode = True
+        from_attributes = True
 
     agent_id: int
     coins: List[int] = []

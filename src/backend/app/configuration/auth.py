@@ -23,42 +23,45 @@ def is_email(string: str) -> bool:
     return re.fullmatch(EMAIL_REGEX, string) is not None
 
 def verify_password(plain_password, hashed_password) -> bool:
-    return Server.pwd_context.verify(plain_password, hashed_password)
+    """Verify password against bcrypt hash; fallback to legacy SHA-256 hex.
+
+    This keeps compatibility with admins created by direct scripts that stored
+    SHA-256 hex digests instead of bcrypt. """
+    try:
+        return Server.pwd_context.verify(plain_password, hashed_password)
+    except Exception:
+        pass
+    try:
+        import hashlib
+        legacy_sha256 = hashlib.sha256(plain_password.encode()).hexdigest()
+        return legacy_sha256 == hashed_password
+    except Exception:
+        return False
 
 def get_password_hash(password) -> str:
     return Server.pwd_context.hash(password)
 
 def create_access_token(payload: dict,
-                        private_key: str = None,
+                        secret_key: str = settings.security.secret_key,
                         algorithm: str = settings.security.algorithm,
                         expires_delta: Optional[timedelta] = None):
-    if private_key is None:
-        try:
-            private_key = settings.security.private_key_path.read_text()
-        except FileNotFoundError:
-            # Fallback для разработки
-            private_key = "dev-secret-key-for-testing-only"
     to_encode = payload.copy()
 
     if expires_delta:
         expire = datetime.now(timezone.utc) + expires_delta
     else:
-        expire = datetime.now(timezone.utc) + timedelta(minutes=15)
+        expire = datetime.now(timezone.utc) + timedelta(minutes=settings.security.access_token_expire_minutes)
 
     to_encode.update({"exp": expire, "iat": datetime.now(timezone.utc), TOKEN_TYPE_FIELD: ACCESS_TOKEN_TYPE})
 
-    return jwt.encode(to_encode, private_key, algorithm=algorithm)
+    return jwt.encode(to_encode, secret_key, algorithm=algorithm)
 
-def decode_access_token(token: str | bytes, public_key: str = None,
+def decode_access_token(token: str | bytes, secret_key: str = None,
                         algorithm: str = settings.security.algorithm):
-    if public_key is None:
-        try:
-            public_key = settings.security.public_key_path.read_text()
-        except FileNotFoundError:
-            # Fallback для разработки
-            public_key = "dev-secret-key-for-testing-only"
+    if secret_key is None:
+        secret_key = settings.security.secret_key
     
-    return jwt.decode(token, public_key, algorithms=[algorithm])
+    return jwt.decode(token, secret_key, algorithms=[algorithm])
 
 def create_refresh_token(payload: dict,
                          secret_key: str = settings.security.refresh_secret_key,

@@ -5,7 +5,7 @@ services:
       context: .
       dockerfile: Dockerfile
     env_file:
-      - settings/prod.env
+      - settings/local.env
     ports:
       - "8000:8000"
     depends_on:
@@ -13,14 +13,15 @@ services:
       - postgres
     networks:
       - monitor
+    command: python run_app_simple.py
 
   celery:
     build:
       context: .
       dockerfile: Dockerfile
-    command: poetry run celery -A src.backend.celery_app.create_app.celery_app worker -l INFO
+    command: celery -A src.backend.celery_app.create_app.celery_app worker -l INFO
     env_file:
-      - settings/prod.env
+      - settings/local.env
     depends_on:
       - redis
       - postgres

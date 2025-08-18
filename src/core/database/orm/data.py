@@ -6,7 +6,7 @@ from datetime import datetime
 import logging
 
 from core.database.models.main_models import DataTimeseries, Timeseries, Coin
-from core.database.models.Strategy_models import StatisticAgent
+from core.database.models.ML_models import StatisticAgent
 
 logger = logging.getLogger(__name__)
 

@@ -12,7 +12,7 @@ BASE_DIR = Path(__file__).resolve().parent.parent.parent
 class AppBaseConfig:
     """Базовый класс для конфигурации с общими настройками"""
     case_sensitive = False
-    env_file = "./settings/prod.env"
+    env_file = "./settings/dev.env"
     env_file_encoding = "utf-8"
     env_nested_delimiter="__"
     extra = "ignore"
@@ -24,6 +24,8 @@ class RunConfig(BaseSettings):
     host: str = Field(default="localhost")
     port: int = Field(default=8000)
     reload: bool = Field(default=False)
+    # Toggle auxiliary brokers (RabbitMQ) usage at app startup
+    enable_rabbit: bool = Field(default=False)
 
     celery_broker_url: str = Field(...)
     celery_result_backend: str = Field(...)
@@ -36,6 +38,10 @@ class RunConfig(BaseSettings):
             "https://localhost:5173",
             "http://127.0.0.1:5173",
             "https://127.0.0.1:5173",
+            "http://localhost",
+            "https://localhost",
+            "http://127.0.0.1",
+            "https://127.0.0.1",
             "http://agent-trade.ru",
             "https://agent-trade.ru",
         ]
@@ -113,7 +119,7 @@ class SecurityCongig(BaseSettings):
 
     secret_key: str = Field(default=...)
     refresh_secret_key: str = Field(default=...)
-    algorithm: str = Field(default="RS256")
+    algorithm: str = Field(default="HS256")
     refresh_algorithm: str = Field(default="HS256")
 
     access_token_expire_minutes: int = Field(default=120)

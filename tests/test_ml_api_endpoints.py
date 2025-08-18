@@ -9,7 +9,7 @@ from backend.app.create_app import create_app
 from core.database.engine import get_db
 from core.database.models.main_models import Coin, Timeseries, DataTimeseries
 from core.database.models.ML_models import Agent
-from core.database.models.Strategy_models import StatisticAgent
+from core.database.models.ML_models import StatisticAgent
 
 
 @pytest.fixture

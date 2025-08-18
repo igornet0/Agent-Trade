@@ -7,7 +7,7 @@ from backend.app.configuration import Server, verify_authorization_admin
 from backend.app.configuration.schemas import PipelineConfig
 from backend.celery_app.create_app import celery_app
 from core.database import db_helper
-from core.database.models.process_models import Pipeline as PipelineModel, Backtest as BacktestModel
+from core.database.models.main_models import Pipeline as PipelineModel, Backtest as BacktestModel
 
 router = APIRouter(prefix="/pipeline", tags=["Pipeline"])
 
