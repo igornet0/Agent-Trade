@@ -92,7 +92,7 @@ async def orm_get_data_stats(
         
         for row in sample_result.scalars():
             # Get coin name
-            coin_query = select(Coin.name).where(Coin.id == row.timeseries.coin_id)
+            coin_query = select(Coin.name).join(Timeseries).where(Timeseries.id == row.timeseries_id)
             coin_name = await db.scalar(coin_query)
             
             sample_data.append({
@@ -233,6 +233,49 @@ async def orm_import_data(
         skipped_records = 0
         errors = []
         
+        # Определяем имя монеты из имени файла или первого записи
+        coin_name = None
+        if data and 'coin' in data[0]:
+            coin_name = data[0]['coin']
+        else:
+            # Если нет имени монеты, используем ETH как по умолчанию
+            coin_name = 'ETH'
+        
+        # Get or create coin
+        coin_query = select(Coin.id).where(Coin.name == coin_name)
+        coin_id = await db.scalar(coin_query)
+        
+        if not coin_id:
+            # Create new coin if not exists
+            new_coin = Coin(
+                name=coin_name,
+                price_now=0.0,
+                parsed=True
+            )
+            db.add(new_coin)
+            await db.flush()
+            coin_id = new_coin.id
+        
+        # Get or create timeseries
+        timeseries_query = select(Timeseries.id).where(
+            and_(
+                Timeseries.coin_id == coin_id,
+                Timeseries.timestamp == timeframe
+            )
+        )
+        timeseries_id = await db.scalar(timeseries_query)
+        
+        if not timeseries_id:
+            # Create new timeseries
+            new_timeseries = Timeseries(
+                coin_id=coin_id,
+                timestamp=timeframe,
+                path_dataset=f"{coin_name}_{timeframe}_{datetime.now().strftime('%Y%m%d')}"
+            )
+            db.add(new_timeseries)
+            await db.flush()
+            timeseries_id = new_timeseries.id
+        
         for record in data:
             try:
                 # Parse datetime
@@ -240,36 +283,6 @@ async def orm_import_data(
                     dt = datetime.fromisoformat(record['datetime'].replace('Z', '+00:00'))
                 else:
                     dt = record['datetime']
-                
-                # Get or create timeseries for coin
-                coin_name = record['coin']
-                coin_query = select(Coin.id).where(Coin.name == coin_name)
-                coin_id = await db.scalar(coin_query)
-                
-                if not coin_id:
-                    errors.append(f"Coin {coin_name} not found")
-                    skipped_records += 1
-                    continue
-                
-                # Get or create timeseries
-                timeseries_query = select(Timeseries.id).where(
-                    and_(
-                        Timeseries.coin_id == coin_id,
-                        Timeseries.path_dataset.like(f"%{timeframe}%")
-                    )
-                )
-                timeseries_id = await db.scalar(timeseries_query)
-                
-                if not timeseries_id:
-                    # Create new timeseries
-                    new_timeseries = Timeseries(
-                        coin_id=coin_id,
-                        timestamp=timeframe,
-                        path_dataset=f"{coin_name}_{timeframe}_{datetime.now().strftime('%Y%m%d')}"
-                    )
-                    db.add(new_timeseries)
-                    await db.flush()
-                    timeseries_id = new_timeseries.id
                 
                 # Check if record already exists
                 existing_query = select(DataTimeseries.id).where(
@@ -284,13 +297,22 @@ async def orm_import_data(
                     skipped_records += 1
                     continue
                 
+                # Handle different column names (max/high, min/low)
+                high_value = record.get('high') or record.get('max')
+                low_value = record.get('low') or record.get('min')
+                
+                if not high_value or not low_value:
+                    errors.append(f"Missing high/max or low/min values in record: {record}")
+                    skipped_records += 1
+                    continue
+                
                 # Create new record
                 new_record = DataTimeseries(
                     timeseries_id=timeseries_id,
                     datetime=dt,
                     open=record['open'],
-                    max=record['high'],
-                    min=record['low'],
+                    max=high_value,
+                    min=low_value,
                     close=record['close'],
                     volume=record['volume']
                 )

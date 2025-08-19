@@ -1753,9 +1753,17 @@ async def import_data(
         else:
             raise HTTPException(status_code=400, detail="Unsupported file format")
         
-        # Validate required columns
-        required_columns = ['datetime', 'open', 'high', 'low', 'close', 'volume']
+        # Validate required columns (allow both high/max and low/min)
+        required_columns = ['datetime', 'open', 'close', 'volume']
         missing_columns = [col for col in required_columns if col not in df.columns]
+        
+        # Check for high/max column
+        if 'high' not in df.columns and 'max' not in df.columns:
+            missing_columns.append('high/max')
+        
+        # Check for low/min column
+        if 'low' not in df.columns and 'min' not in df.columns:
+            missing_columns.append('low/min')
         
         if missing_columns:
             raise HTTPException(
@@ -1765,6 +1773,19 @@ async def import_data(
         
         # Convert to list of dictionaries
         data = df.to_dict('records')
+        
+        # Try to extract coin name from filename
+        coin_name = None
+        if file.filename:
+            # Extract coin name from filename (e.g., "ETH_5m.csv" -> "ETH")
+            filename_parts = file.filename.replace('.csv', '').replace('.json', '').split('_')
+            if len(filename_parts) > 0:
+                coin_name = filename_parts[0]
+        
+        # Add coin name to each record if not present
+        if coin_name and 'coin' not in data[0] if data else False:
+            for record in data:
+                record['coin'] = coin_name
         
         # Import data
         result = await orm_import_data(db, data, timeframe)

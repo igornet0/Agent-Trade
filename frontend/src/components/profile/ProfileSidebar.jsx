@@ -5,7 +5,7 @@ const ProfileSidebar = ({ activeTab, setActiveTab, onLogout }) => {
   return (
     <div className="w-64 bg-gradient-to-b from-blue-900 to-purple-900 text-white p-6 flex flex-col">
       <div className="mb-10">
-        <a href="https://agent-trade.ru" className="flex items-center">
+        <a href="/" className="flex items-center">
         <img src={logo} alt="AI Trading Logo" className="w-20 h-auto" />
         <h1 className="text-2xl font-bold">Agent Trade</h1>
         </a>

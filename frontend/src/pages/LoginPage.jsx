@@ -34,7 +34,7 @@ const LoginPage = ({ onLogin }) => {
       <div className="w-full max-w-md">
         {/* Логотип */}
         <div className="flex justify-center mb-8">
-          <a href="https://agent-trade.ru" className="flex items-center">
+          <a href="/" className="flex items-center">
           <img 
             src={logo} 
             alt="AI Trading Logo" 
